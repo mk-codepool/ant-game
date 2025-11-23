@@ -14,8 +14,11 @@ export interface FaunaAndFloraConfig {
 }
 
 export default class FaunaAndFlora {
-  _creatures: { [id: string]: Creature } = {};
-  _plants: { [id: string]: Plant } = {};
+  _creatures = new Map<number, Creature>();
+  _plants = new Map<number, Plant>();
+  private nextCreatureId = 1;
+  private nextPlantId = 1;
+
   randomNumber = 0;
   worldBorders: WorldBorders = {
     xStart: 0,
@@ -31,11 +34,11 @@ export default class FaunaAndFlora {
   }
 
   get creatures() {
-    return Array.from(Object.values(this._creatures));
+    return Array.from(this._creatures.values());
   }
 
   get plants() {
-    return Array.from(Object.values(this._plants));
+    return Array.from(this._plants.values());
   }
 
   setConfig = (config: FaunaAndFloraConfig) => {
@@ -61,36 +64,38 @@ export default class FaunaAndFlora {
   createCreature = (newCreature?: typeof Creature, x?: number, y?: number) => {
     const CreatureClass = newCreature || this.creaturesDef.creature;
     const xy = !x || !y ? this.getRandomCoordinates() : this.getExactCoordinates(x, y);
-    const id = `${xy.x}${xy.y}`;
-    this._creatures[id] = new CreatureClass({ x: xy.x, y: xy.y, id });
+    const id = this.nextCreatureId++;
+    this._creatures.set(id, new CreatureClass({ x: xy.x, y: xy.y, id }));
   }
 
   createPlant = (newPlant?: typeof Plant, x?: number, y?: number) => {
     const PlantClass = newPlant || this.plantsDef.plant;
     const xy = !x || !y ? this.getRandomCoordinates() : this.getExactCoordinates(x, y);
-    const id = `${xy.x}${xy.y}`;
-    this._plants[id] = new PlantClass({ x: xy.x, y: xy.y, id });
+    const id = this.nextPlantId++;
+    this._plants.set(id, new PlantClass({ x: xy.x, y: xy.y, id }));
   }
 
-  doFrameCycle = () => {
-    [...this.creatures, ...this.plants].filter(thing => thing.lifeEnergy > 0).forEach(thing => {
-      const randomNumber = getRandomNumber(0, 100);
-      thing.move();
-      if (randomNumber > 98) {
-        thing.setTarget(this.getRandomCoordinates());
+  doFrameCycle = (dt: number) => {
+    const things = [...this.creatures, ...this.plants];
+    for (const thing of things) {
+      if (thing.lifeEnergy > 0) {
+        const randomNumber = getRandomNumber(0, 100);
+        thing.move(dt);
+        if (randomNumber > 98) {
+          thing.setTarget(this.getRandomCoordinates());
+        }
       }
-    });
+    }
   }
 
   doSmallCycle = () => {
     [...this.creatures, ...this.plants].forEach(thing => {
       thing.ageUp();
       if (thing.lifeEnergy < -20) {
-        // console.log(thing.lifeEnergy)
         if (thing instanceof Creature) {
-          delete this._creatures[thing.id];
+          this._creatures.delete(thing.id);
         } else if (thing instanceof Plant) {
-          delete this._plants[thing.id];
+          this._plants.delete(thing.id);
         }
       }
     });

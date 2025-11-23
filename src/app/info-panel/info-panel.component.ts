@@ -1,4 +1,5 @@
 import { Component, ChangeDetectorRef } from '@angular/core';
+import { Subscription } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import GE from '../game-engine';
 
@@ -24,27 +25,27 @@ import GE from '../game-engine';
       </div>
       <div class="row">
         <div class="col-7 text-right">Small cycle:</div>
-        <div class="col-5">{{ engine.worldCycle?.small }}</div>
+        <div class="col-5">{{ engine.worldCycle.small }}</div>
       </div>
       <div class="row">
         <div class="col-7 text-right">Big cycle:</div>
-        <div class="col-5">{{ engine.worldCycle?.big }}</div>
+        <div class="col-5">{{ engine.worldCycle.big }}</div>
       </div>
       <div class="row">
         <div class="col-7 text-right">Epic cycle:</div>
-        <div class="col-5">{{ engine.worldCycle?.epic }}</div>
+        <div class="col-5">{{ engine.worldCycle.epic }}</div>
       </div>
       <hr />
       <div class="row">
         <div class="col text-center">
           🙂 {{ getCreatureCount(true) }}
-          💀 {{ getCreatureCount(false) }} = {{ engine.faunaAndFlora.creatures?.length }}
+          💀 {{ getCreatureCount(false) }} = {{ engine.faunaAndFlora.creatures.length }}
         </div>
       </div>
       <div class="row">
         <div class="col text-center">
           🌳 {{ getPlantCount(true) }}
-          💀 {{ getPlantCount(false) }} = {{ engine.faunaAndFlora.plants?.length }}
+          💀 {{ getPlantCount(false) }} = {{ engine.faunaAndFlora.plants.length }}
         </div>
       </div>
       <hr />
@@ -121,23 +122,19 @@ export class InfoPanelComponent {
     Array.from({ length: 100 }).forEach(() => faunaAndFlora.createCreature());
   }
 
+  private mouseSubscription?: Subscription;
+
   setCanvasDownNewCreature(newThing: any) {
-    this.engine.mouseController.setConfig({
-      callbacks: {
-        down: ({ x, y }: any) => {
-          this.engine.faunaAndFlora.createCreature(newThing, x, y);
-        }
-      }
+    this.mouseSubscription?.unsubscribe();
+    this.mouseSubscription = this.engine.mouseController.onMouseDown.subscribe(({ x, y }) => {
+      this.engine.faunaAndFlora.createCreature(newThing, x, y);
     });
   }
 
   setCanvasDownNewPlant(newThing: any) {
-    this.engine.mouseController.setConfig({
-      callbacks: {
-        down: ({ x, y }: any) => {
-          this.engine.faunaAndFlora.createPlant(newThing, x, y);
-        }
-      }
+    this.mouseSubscription?.unsubscribe();
+    this.mouseSubscription = this.engine.mouseController.onMouseDown.subscribe(({ x, y }) => {
+      this.engine.faunaAndFlora.createPlant(newThing, x, y);
     });
   }
 

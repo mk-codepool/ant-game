@@ -24,6 +24,9 @@ export class GameEngine {
   mouseController = new MouseController();
   renderCallback = () => { };
 
+  private lastTime = 0;
+  private animationFrameId: number | null = null;
+
   constructor() {
     console.info('Game engine started and aliased as GE.');
     this.worldCycle.setConfig({
@@ -36,7 +39,7 @@ export class GameEngine {
   init = ({ renderCallback }: { renderCallback?: () => void } = {}) => {
     console.info('GE calls: init');
     this.renderCallback = renderCallback || this.renderCallback;
-    this.runEngine();
+    this.startEngine();
   }
 
   setConfig = (config: GameEngineConfig = {}) => {
@@ -61,20 +64,32 @@ export class GameEngine {
     }
   }
 
-  runEngine = () => setTimeout(() => {
+  startEngine = () => {
+    if (this.animationFrameId) return;
+    this.lastTime = performance.now();
+    this.runEngine(this.lastTime);
+  }
+
+  runEngine = (timestamp: number) => {
     if (this._config.pause) {
+      this.animationFrameId = requestAnimationFrame(this.runEngine);
       return;
     }
-    this.renderCallback();
-    this.runFrames();
-    this.runEngine();
-    this.runWorldTime();
-  }, 20);
 
-  runFrames = () => {
+    const deltaTime = (timestamp - this.lastTime) / 1000; // Convert to seconds
+    this.lastTime = timestamp;
+
+    this.renderCallback();
+    this.runFrames(deltaTime);
+    this.runWorldTime();
+
+    this.animationFrameId = requestAnimationFrame(this.runEngine);
+  };
+
+  runFrames = (dt: number) => {
     const maxFrame = 60;
     this.frame = this.frame > maxFrame ? 0 : this.frame + 1;
-    this.everyFrame();
+    this.everyFrame(dt);
   }
 
   runWorldTime = () => {
@@ -84,8 +99,8 @@ export class GameEngine {
     }
   }
 
-  everyFrame() {
-    this.faunaAndFlora.doFrameCycle();
+  everyFrame(dt: number) {
+    this.faunaAndFlora.doFrameCycle(dt);
   }
 
   everySmallCycle = () => {

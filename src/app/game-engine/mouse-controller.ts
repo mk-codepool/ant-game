@@ -1,39 +1,29 @@
-export interface MouseCallbacks {
-  move?: () => void;
-  up?: (coords: { x: number; y: number }) => void;
-  down?: (coords: { x: number; y: number }) => void;
-}
+import { Subject } from 'rxjs';
 
 export interface MouseControllerConfig {
   ctx?: CanvasRenderingContext2D;
-  callbacks?: MouseCallbacks;
 }
 
 export default class MouseController {
   ctx: CanvasRenderingContext2D | null = null;
   x = 0;
   y = 0;
-  callbacks: Required<MouseCallbacks> = {
-    move: () => { },
-    up: () => { },
-    down: () => { },
-  };
+
+  private moveSubject = new Subject<{ x: number; y: number }>();
+  private upSubject = new Subject<{ x: number; y: number }>();
+  private downSubject = new Subject<{ x: number; y: number }>();
+
+  onMouseMove = this.moveSubject.asObservable();
+  onMouseUp = this.upSubject.asObservable();
+  onMouseDown = this.downSubject.asObservable();
 
   setConfig = (config: MouseControllerConfig) => {
     const {
       ctx,
-      callbacks,
     } = config;
 
     if (ctx) {
       this.ctx = ctx;
-    }
-
-    if (callbacks) {
-      this.callbacks = {
-        ...this.callbacks,
-        ...callbacks,
-      };
     }
 
     if (this.ctx) {
@@ -47,25 +37,19 @@ export default class MouseController {
     this.ctx.canvas.addEventListener('mousemove', (e) => {
       this.x = e.offsetX;
       this.y = e.offsetY;
-      this.callbacks.move();
+      this.moveSubject.next({ x: this.x, y: this.y });
     });
 
     this.ctx.canvas.addEventListener('mouseup', (e) => {
       this.x = e.offsetX;
       this.y = e.offsetY;
-      this.callbacks.up({
-        x: e.offsetX,
-        y: e.offsetY,
-      });
+      this.upSubject.next({ x: this.x, y: this.y });
     });
 
     this.ctx.canvas.addEventListener('mousedown', (e) => {
       this.x = e.offsetX;
       this.y = e.offsetY;
-      this.callbacks.down({
-        x: e.offsetX,
-        y: e.offsetY,
-      });
+      this.downSubject.next({ x: this.x, y: this.y });
     });
   }
 }

@@ -1,4 +1,4 @@
-import { Component, OnInit, ViewChild } from '@angular/core';
+import { Component, type OnInit, ViewChild } from '@angular/core';
 import { CanvasContainerComponent } from './canvas-container/canvas-container.component';
 import { InfoPanelComponent } from './info-panel/info-panel.component';
 import GE from './game-engine';
@@ -21,6 +21,6 @@ export class App implements OnInit {
         }
       }
     });
-    GE.runEngine();
+    GE.startEngine();
   }
 }

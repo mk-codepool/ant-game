@@ -1,11 +1,11 @@
 export interface LifeProps {
   x: number;
   y: number;
-  id: string;
+  id: number;
 }
 
 export class Life {
-  id = '';
+  id: number = 0;
   age = 0;
   lifeEnergy = 0;
   target = {
@@ -26,7 +26,7 @@ export class Life {
     this.lifeEnergy--;
   }
 
-  move = () => { }
+  move = (dt: number) => { }
 
   setPosition = ({ x, y }: { x: number; y: number }) => {
     this.x = x;
