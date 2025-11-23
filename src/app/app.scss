@@ -1,0 +1,6 @@
+.game-container {
+  height: 100vh; /* Use vh for full viewport height */
+  display: grid;
+  grid-template-columns: auto 20rem;
+  overflow: hidden;
+}
