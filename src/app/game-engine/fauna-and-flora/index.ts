@@ -1,66 +1,23 @@
-import { getRandomNumber } from "./random";
+import { getRandomNumber } from "../random";
+import { Creature } from "./fauna";
+import { Plant } from "./flora";
 
-class Life {
-  id = '';
-  age = 0;
-  lifeEnergy = 0;
-  target = {
-    x: 0,
-    y: 0,
-  };
-  x = 0;
-  y = 0;
-
-  constructor(props) {
-    const { x, y, id } = props;
-    this.setPosition({ x, y });
-    this.id = id;
-  }
-
-  ageUp = () => {
-    this.age++;
-    this.lifeEnergy--;
-  }
-
-  move = () => {}
-
-  setPosition = ({ x, y }) => {
-    this.x = x;
-    this.y = y;
-  }
-
-  setTarget = ({ x, y }) => {
-    this.target = {
-      x,
-      y
-    }
-  }
+export interface WorldBorders {
+  xStart: number;
+  xEnd: number;
+  yStart: number;
+  yEnd: number;
 }
 
-class Creature extends Life {
-  constructor(props) {
-    super(props);
-    this.lifeEnergy = 20;
-  }
-
-  move = () => {
-    this.x = this.x > this.target.x ? this.x - 1 : this.x + 1;
-    this.y = this.y > this.target.y ? this.y - 1 : this.y + 1;
-  }
-}
-
-class Plant extends Life {
-  constructor(props) {
-    super(props);
-    this.lifeEnergy = 200;
-  }
+export interface FaunaAndFloraConfig {
+  worldBorders?: Partial<WorldBorders>;
 }
 
 export default class FaunaAndFlora {
-  _creatures = {};
-  _plants = {};
+  _creatures: { [id: string]: Creature } = {};
+  _plants: { [id: string]: Plant } = {};
   randomNumber = 0;
-  worldBorders = {
+  worldBorders: WorldBorders = {
     xStart: 0,
     xEnd: 0,
     yStart: 0,
@@ -81,15 +38,17 @@ export default class FaunaAndFlora {
     return Array.from(Object.values(this._plants));
   }
 
-  setConfig = (config) => {
+  setConfig = (config: FaunaAndFloraConfig) => {
     const { worldBorders } = config;
-    this.worldBorders = {
-      ...this.worldBorders,
-      ...worldBorders,
+    if (worldBorders) {
+      this.worldBorders = {
+        ...this.worldBorders,
+        ...worldBorders,
+      }
     }
   }
 
-  getExactCoordinates = (x, y) => ({
+  getExactCoordinates = (x: number, y: number) => ({
     x: x > this.worldBorders.xStart && x < this.worldBorders.xEnd ? x : 0,
     y: y > this.worldBorders.yStart && y < this.worldBorders.yEnd ? y : 0
   });
@@ -99,20 +58,20 @@ export default class FaunaAndFlora {
     y: getRandomNumber(this.worldBorders.yStart, this.worldBorders.yEnd)
   });
 
-  createCreature = (newCreature, x, y) => {
-    const Creature = newCreature || this.creaturesDef.creature;
+  createCreature = (newCreature?: typeof Creature, x?: number, y?: number) => {
+    const CreatureClass = newCreature || this.creaturesDef.creature;
     const xy = !x || !y ? this.getRandomCoordinates() : this.getExactCoordinates(x, y);
     const id = `${xy.x}${xy.y}`;
-    this._creatures[id] = new Creature({ x: xy.x, y: xy.y, id });
+    this._creatures[id] = new CreatureClass({ x: xy.x, y: xy.y, id });
   }
 
-  createPlant = (newPlant, x, y) => {
-    const Plant = newPlant || this.plantsDef.plant;
+  createPlant = (newPlant?: typeof Plant, x?: number, y?: number) => {
+    const PlantClass = newPlant || this.plantsDef.plant;
     const xy = !x || !y ? this.getRandomCoordinates() : this.getExactCoordinates(x, y);
     const id = `${xy.x}${xy.y}`;
-    this._plants[id] = new Plant({ x: xy.x, y: xy.y, id });
+    this._plants[id] = new PlantClass({ x: xy.x, y: xy.y, id });
   }
-  
+
   doFrameCycle = () => {
     [...this.creatures, ...this.plants].filter(thing => thing.lifeEnergy > 0).forEach(thing => {
       const randomNumber = getRandomNumber(0, 100);
@@ -122,17 +81,21 @@ export default class FaunaAndFlora {
       }
     });
   }
-  
+
   doSmallCycle = () => {
     [...this.creatures, ...this.plants].forEach(thing => {
       thing.ageUp();
       if (thing.lifeEnergy < -20) {
-        console.log(thing.lifeEnergy)
-        delete this._creatures[thing.id];
+        // console.log(thing.lifeEnergy)
+        if (thing instanceof Creature) {
+          delete this._creatures[thing.id];
+        } else if (thing instanceof Plant) {
+          delete this._plants[thing.id];
+        }
       }
     });
   }
-  
+
   doBigCycle = () => {
   }
 }

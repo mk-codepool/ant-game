@@ -1,3 +1,9 @@
+export interface TimeConfig {
+  everySmallCycle?: () => void;
+  everyBigCycle?: () => void;
+  everyEpicCycle?: () => void;
+}
+
 export default class Time {
   small = 0;
   smallMax = 100;
@@ -7,15 +13,15 @@ export default class Time {
   epic = 0;
   // calculated to be 1 epicMax is a day
   epicMax = 10;
-  everySmallCycle = () => {};
-  everyBigCycle = () => {};
-  everyEpicCycle = () => {};
+  everySmallCycle: () => void = () => { };
+  everyBigCycle: () => void = () => { };
+  everyEpicCycle: () => void = () => { };
 
   constructor({
     everySmallCycle,
     everyBigCycle,
     everyEpicCycle,
-  } = {}) {
+  }: TimeConfig = {}) {
     this.everySmallCycle = everySmallCycle || this.everySmallCycle;
     this.everyBigCycle = everyBigCycle || this.everyBigCycle;
     this.everyEpicCycle = everyEpicCycle || this.everyEpicCycle;
@@ -25,7 +31,7 @@ export default class Time {
     everySmallCycle,
     everyBigCycle,
     everyEpicCycle,
-  } = {}) => {
+  }: TimeConfig = {}) => {
     this.everySmallCycle = everySmallCycle || this.everySmallCycle;
     this.everyBigCycle = everyBigCycle || this.everyBigCycle;
     this.everyEpicCycle = everyEpicCycle || this.everyEpicCycle;

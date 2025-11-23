@@ -1,11 +1,20 @@
-import FaunaAndFlora from "./faunaAndFlora";
+import FaunaAndFlora from "./fauna-and-flora/index";
 import Time from "./time";
-import MouseController from "./mouseController";
+import MouseController from "./mouse-controller";
 
-class GameEngine {
+export interface GameEngineConfig {
+  pause?: boolean;
+  borderX?: number;
+  borderY?: number;
+  ctx?: CanvasRenderingContext2D | null;
+  renderCallback?: () => void;
+  config?: any;
+}
+
+export class GameEngine {
   frame = 0;
   worldCycle = new Time();
-  _config = {
+  _config: GameEngineConfig = {
     pause: false,
     borderX: 0,
     borderY: 0,
@@ -13,9 +22,9 @@ class GameEngine {
   };
   faunaAndFlora = new FaunaAndFlora();
   mouseController = new MouseController();
-  renderCallback = () => {};
+  renderCallback = () => { };
 
-  constructor(){
+  constructor() {
     console.info('Game engine started and aliased as GE.');
     this.worldCycle.setConfig({
       everySmallCycle: this.everySmallCycle,
@@ -24,30 +33,32 @@ class GameEngine {
     });
   }
 
-  init = ({ renderCallback } = {}) => {
+  init = ({ renderCallback }: { renderCallback?: () => void } = {}) => {
     console.info('GE calls: init');
     this.renderCallback = renderCallback || this.renderCallback;
     this.runEngine();
   }
 
-  setConfig = (config = {}) => {
+  setConfig = (config: GameEngineConfig = {}) => {
     this._config = {
       ...this._config,
-      config,
-    }
+      ...config,
+    };
 
     if (config.borderX || config.borderY) {
       this.faunaAndFlora.setConfig({
         worldBorders: {
           xStart: 0,
-          xEnd: config.borderX,
+          xEnd: config.borderX || 0,
           yStart: 0,
-          yEnd: config.borderY,
+          yEnd: config.borderY || 0,
         }
       });
     }
-    
-    this.mouseController.setConfig({ ctx: config.ctx });
+
+    if (config.ctx) {
+      this.mouseController.setConfig({ ctx: config.ctx });
+    }
   }
 
   runEngine = () => setTimeout(() => {
