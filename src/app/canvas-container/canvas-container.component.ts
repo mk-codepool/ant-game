@@ -65,36 +65,89 @@ export class CanvasContainerComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
-    const { faunaAndFlora } = GE;
-    const { creatures, plants } = faunaAndFlora;
+    const { world } = GE;
+    const { fauna, flora, terrain } = world;
+    const creatures = fauna.creatures;
+    const plants = flora.plants;
+    const cells = Object.values(terrain.cells);
     const canvas = this.canvasRef.nativeElement;
 
     this.ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // Draw Terrain
+    cells.forEach((cell: any) => {
+      this.ctx.fillStyle = cell.color || '#000';
+      this.ctx.fillRect(
+        cell.cx * terrain.cellSize,
+        cell.cy * terrain.cellSize,
+        terrain.cellSize,
+        terrain.cellSize
+      );
+    });
+
     creatures.forEach((creature: any) => {
-      if (creature.lifeEnergy > 15 && creature.lifeEnergy <= 20) {
-        this.ctx.fillStyle = 'rgba(199, 0, 0, 1)';
-      } else if (creature.lifeEnergy > 10 && creature.lifeEnergy <= 15) {
-        this.ctx.fillStyle = 'rgba(165, 34, 34, 1)';
-      } else if (creature.lifeEnergy > 5 && creature.lifeEnergy <= 10) {
-        this.ctx.fillStyle = 'rgba(126, 73, 73, 1)';
-      } else if (creature.lifeEnergy > 0 && creature.lifeEnergy <= 5) {
-        this.ctx.fillStyle = 'rgba(26, 15, 15, 1)';
-      } else if (creature.lifeEnergy <= 0) {
+      // Draw vision cone first (behind creature)
+      this.drawVisionCone(creature);
+
+      // Draw creature with color based on energy level
+      // Use a gradient from dark red (low energy) to bright green (high energy)
+      const maxEnergy = 250; // Expected max energy (a bit over plant energy for headroom)
+      const energyPercent = Math.min(1, Math.max(0, creature.lifeEnergy / maxEnergy));
+
+      if (creature.lifeEnergy <= 0) {
+        // Dead - very transparent black
         this.ctx.fillStyle = 'rgba(0, 0, 0, .05)';
+      } else {
+        // Use HSL for smooth color gradient
+        // Hue: 0 (red) at low energy → 120 (green) at high energy
+        const hue = energyPercent * 120;
+        // Saturation: 70% for vibrant colors
+        const saturation = 70;
+        // Lightness: 30% at low energy → 50% at high energy (darker when low)
+        const lightness = 30 + (energyPercent * 20);
+
+        this.ctx.fillStyle = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
       }
+
       this.ctx.save();
-      this.ctx.fillRect(creature.x, creature.y, 4, 4);
-      this.ctx.restore(); // Added restore, good practice
+      this.ctx.fillRect(creature.position.x, creature.position.y, 4, 4);
+      this.ctx.restore();
     });
 
     plants.forEach((plant: any) => {
       this.ctx.fillStyle = plant.lifeEnergy ? 'rgba(96, 154, 45, 1)' : 'rgba(0, 0, 0, 1)';
       this.ctx.save();
-      this.ctx.fillRect(plant.x - 6, plant.y - 6, 11, 11);
+      this.ctx.fillRect(plant.position.x - 6, plant.position.y - 6, 11, 11);
       this.ctx.restore(); // Added restore
     });
 
     this.animationFrameId = requestAnimationFrame(this.draw);
+  }
+
+  /**
+   * Draw the vision cone for a creature
+   */
+  drawVisionCone = (creature: any) => {
+    if (!creature.vision || creature.lifeEnergy <= 0) return;
+
+    const { position, vision } = creature;
+    const directionAngle = vision.getDirectionAngle();
+    const startAngle = directionAngle - vision.angle / 2;
+    const endAngle = directionAngle + vision.angle / 2;
+
+    this.ctx.save();
+
+    // Set fill style based on creature energy (more transparent when low energy)
+    const alpha = Math.min(0.15, creature.lifeEnergy / 100);
+    this.ctx.fillStyle = `rgba(255, 255, 100, ${alpha})`;
+
+    // Draw vision cone
+    this.ctx.beginPath();
+    this.ctx.moveTo(position.x + 2, position.y + 2); // Center of creature (offset for 4x4 size)
+    this.ctx.arc(position.x + 2, position.y + 2, vision.range, startAngle, endAngle);
+    this.ctx.closePath();
+    this.ctx.fill();
+
+    this.ctx.restore();
   }
 }

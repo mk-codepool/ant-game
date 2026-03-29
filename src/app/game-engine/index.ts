@@ -1,4 +1,4 @@
-import FaunaAndFlora from "./fauna-and-flora/index";
+import WorldEngine from "./world.engine";
 import Time from "./time";
 import MouseController from "./mouse-controller";
 
@@ -20,7 +20,7 @@ export class GameEngine {
     borderY: 0,
     ctx: null,
   };
-  faunaAndFlora = new FaunaAndFlora();
+  world = WorldEngine;
   mouseController = new MouseController();
   renderCallback = () => { };
 
@@ -49,7 +49,7 @@ export class GameEngine {
     };
 
     if (config.borderX || config.borderY) {
-      this.faunaAndFlora.setConfig({
+      this.world.setConfig({
         worldBorders: {
           xStart: 0,
           xEnd: config.borderX || 0,
@@ -100,15 +100,15 @@ export class GameEngine {
   }
 
   everyFrame(dt: number) {
-    this.faunaAndFlora.doFrameCycle(dt);
+    this.world.doFrameCycle(dt);
   }
 
   everySmallCycle = () => {
-    this.faunaAndFlora.doSmallCycle();
+    this.world.doSmallCycle();
   }
 
   everyBigCycle = () => {
-    this.faunaAndFlora.doBigCycle();
+    this.world.doBigCycle();
   }
 
   everyEpicCycle = () => {

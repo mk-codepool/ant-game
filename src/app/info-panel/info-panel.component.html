@@ -1,0 +1,69 @@
+<div class="infopanel-container">
+  <div class="row">
+    <div class="col">
+      <div class="btn-group btn-block">
+        <button type="button" class="btn btn-secondary" (click)="initBang()">Bang</button>
+        <button type="button" class="btn btn-secondary" (click)="setCanvasDownNewCreature(creaturesDef.creature)">Creature</button>
+        <button type="button" class="btn btn-secondary" (click)="setCanvasDownNewPlant(plantsDef.plant)">Plant</button>
+      </div>
+    </div>
+  </div>
+  <div class="row" style="margin-top: 5px;">
+    <div class="col">
+      <div class="btn-group btn-block">
+        <button type="button" class="btn btn-secondary" (click)="setCanvasDownBiome(biomeType.GRASS)">Grass</button>
+        <button type="button" class="btn btn-secondary" (click)="setCanvasDownBiome(biomeType.SAND)">Sand</button>
+        <button type="button" class="btn btn-secondary" (click)="setCanvasDownBiome(biomeType.WATER)">Water</button>
+      </div>
+    </div>
+  </div>
+  <hr />
+  <div class="row">
+    <div class="col-7 text-right">Blur Edge:</div>
+    <div class="col-5">
+      <input type="range" min="0" max="1" step="0.1"
+             [value]="engine.world.terrain.blurFactor" 
+             (input)="onBlurChange($event)" 
+             style="width: 100%;">
+    </div>
+  </div>
+  <hr />
+  <div class="row">
+    <div class="col-7 text-right">Frame:</div>
+    <div class="col-5">{{ engine.frame }}</div>
+  </div>
+  <div class="row">
+    <div class="col-7 text-right">Small cycle:</div>
+    <div class="col-5">{{ engine.worldCycle.small }}</div>
+  </div>
+  <div class="row">
+    <div class="col-7 text-right">Big cycle:</div>
+    <div class="col-5">{{ engine.worldCycle.big }}</div>
+  </div>
+  <div class="row">
+    <div class="col-7 text-right">Epic cycle:</div>
+    <div class="col-5">{{ engine.worldCycle.epic }}</div>
+  </div>
+  <hr />
+  <div class="row">
+    <div class="col text-center">
+      🙂 {{ getCreatureCount(true) }}
+      💀 {{ getCreatureCount(false) }} = {{ engine.world.fauna.creatures.length }}
+    </div>
+  </div>
+  <div class="row">
+    <div class="col text-center">
+      🌳 {{ getPlantCount(true) }}
+      💀 {{ getPlantCount(false) }} = {{ engine.world.flora.plants.length }}
+    </div>
+  </div>
+  <hr />
+  <div class="row">
+    <div class="col-7 text-right">Mouse X:</div>
+    <div class="col-5">{{ engine.mouseController.x }}</div>
+  </div>
+  <div class="row">
+    <div class="col-7 text-right">Mouse Y:</div>
+    <div class="col-5">{{ engine.mouseController.y }}</div>
+  </div>
+</div>
