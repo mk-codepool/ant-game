@@ -1,6 +1,7 @@
 import WorldEngine from "./world.engine";
 import Time from "./time";
 import MouseController from "./mouse-controller";
+import SaveService from "./storage/save.service";
 
 export interface GameEngineConfig {
   pause?: boolean;
@@ -22,6 +23,7 @@ export class GameEngine {
   };
   world = WorldEngine;
   mouseController = new MouseController();
+  saveService = SaveService;
   renderCallback = () => { };
 
   private lastTime = 0;
@@ -36,10 +38,27 @@ export class GameEngine {
     });
   }
 
+  /** Whether we've already restored from autosave this session */
+  private restored = false;
+
   init = ({ renderCallback }: { renderCallback?: () => void } = {}) => {
     console.info('GE calls: init');
     this.renderCallback = renderCallback || this.renderCallback;
     this.startEngine();
+  }
+
+  /**
+   * Try to restore from the last autosave. Call this AFTER setConfig
+   * so world borders are set. Returns true if data was restored.
+   */
+  autoRestore = async (): Promise<boolean> => {
+    if (this.restored) return false;
+    this.restored = true;
+    const success = await this.saveService.autoRestore(this.world);
+    if (success) {
+      console.info('[GE] World restored from autosave');
+    }
+    return success;
   }
 
   setConfig = (config: GameEngineConfig = {}) => {
@@ -105,6 +124,8 @@ export class GameEngine {
 
   everySmallCycle = () => {
     this.world.doSmallCycle();
+    // Autosave on every small cycle — fire and forget, won't block the game loop
+    this.saveService.autosave(this.world);
   }
 
   everyBigCycle = () => {

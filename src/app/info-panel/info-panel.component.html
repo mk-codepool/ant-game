@@ -2,7 +2,8 @@
   <div class="row">
     <div class="col">
       <div class="btn-group btn-block">
-        <button type="button" class="btn btn-secondary" (click)="initBang()">Bang</button>
+        <button type="button" class="btn btn-secondary" (click)="resetBiomes()">Big Bang</button>
+        <button type="button" class="btn btn-secondary" (click)="pool()">Pool</button>
         <button type="button" class="btn btn-secondary" (click)="setCanvasDownNewCreature(creaturesDef.creature)">Creature</button>
         <button type="button" class="btn btn-secondary" (click)="setCanvasDownNewPlant(plantsDef.plant)">Plant</button>
       </div>
@@ -66,4 +67,6 @@
     <div class="col-7 text-right">Mouse Y:</div>
     <div class="col-5">{{ engine.mouseController.y }}</div>
   </div>
+
+
 </div>

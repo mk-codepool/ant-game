@@ -38,7 +38,7 @@ export class CanvasContainerComponent implements AfterViewInit, OnDestroy {
     this.ctx = canvas.getContext('2d')!;
 
     // Set initial size
-    setTimeout(() => {
+    setTimeout(async () => {
       canvas.width = container.offsetWidth;
       canvas.height = container.offsetHeight;
 
@@ -47,6 +47,9 @@ export class CanvasContainerComponent implements AfterViewInit, OnDestroy {
         borderY: container.offsetHeight,
         ctx: this.ctx,
       });
+
+      // Try to restore from autosave before starting the render loop
+      await GE.autoRestore();
 
       this.ngZone.runOutsideAngular(() => {
         this.draw();
@@ -112,6 +115,9 @@ export class CanvasContainerComponent implements AfterViewInit, OnDestroy {
       this.ctx.save();
       this.ctx.fillRect(creature.position.x, creature.position.y, 4, 4);
       this.ctx.restore();
+
+      // Draw floating statistics box
+      this.drawCreatureStats(creature);
     });
 
     plants.forEach((plant: any) => {
@@ -147,6 +153,60 @@ export class CanvasContainerComponent implements AfterViewInit, OnDestroy {
     this.ctx.arc(position.x + 2, position.y + 2, vision.range, startAngle, endAngle);
     this.ctx.closePath();
     this.ctx.fill();
+
+    this.ctx.restore();
+  }
+
+  /**
+   * Draw a floating statistics box next to a creature
+   */
+  drawCreatureStats = (creature: any) => {
+    if (creature.lifeEnergy <= -20) return; // Don't draw for completely removed creatures, or barely dead ones. We can check <= 0.
+    if (creature.lifeEnergy <= 0) return;
+
+    const { position } = creature;
+    this.ctx.save();
+
+    this.ctx.font = '10px Roboto, Arial, sans-serif';
+    
+    const stats = [
+      `ID: ${creature.id || '?'}`,
+      `Eng: ${Math.round(creature.lifeEnergy || 0)}`,
+      `Age: ${creature.age || 0}`,
+      `Act: ${creature.currentBehavior?.name || 'idle'}`
+    ];
+
+    let maxWidth = 0;
+    stats.forEach(text => {
+      const width = this.ctx.measureText(text).width;
+      if (width > maxWidth) maxWidth = width;
+    });
+
+    const padding = 4;
+    const lineHeight = 12;
+    const boxWidth = maxWidth + padding * 2;
+    const boxHeight = stats.length * lineHeight + padding * 2;
+
+    const boxX = position.x + 8;
+    const boxY = position.y - boxHeight / 2 + 2;
+
+    // Draw glassmorphism-like modern semitransparent background
+    this.ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+    this.ctx.beginPath();
+    this.ctx.roundRect(boxX, boxY, boxWidth, boxHeight, 4);
+    this.ctx.fill();
+
+    // Draw text with vibrant colors
+    this.ctx.textBaseline = 'top';
+    stats.forEach((text, i) => {
+      // Highlight the first line (ID) or just use white/light gray
+      this.ctx.fillStyle = i === 0 ? '#38bdf8' : '#e2e8f0'; 
+      if (i === 1) this.ctx.fillStyle = '#4ade80'; // Energy green
+      if (i === 2) this.ctx.fillStyle = '#fbbf24'; // Age yellow
+      if (i === 3) this.ctx.fillStyle = '#c084fc'; // Activity purple
+      
+      this.ctx.fillText(text, boxX + padding, boxY + padding + (i * lineHeight));
+    });
 
     this.ctx.restore();
   }

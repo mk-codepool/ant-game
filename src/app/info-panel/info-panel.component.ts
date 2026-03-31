@@ -24,13 +24,15 @@ export class InfoPanelComponent {
     this.cdr.detectChanges();
   }
 
-  initBang() {
+  pool() {
     const { world } = this.engine;
-    world.terrain.reseedMap();
-    world.flora._plants.clear();
-    world.fauna._creatures.clear();
     Array.from({ length: 10 }).forEach(() => world.flora.createPlant());
     Array.from({ length: 10 }).forEach(() => world.fauna.createCreature());
+  }
+
+  resetBiomes() {
+    const { world } = this.engine;
+    world.terrain.reseedMap();
   }
 
   private mouseSubscription?: Subscription;

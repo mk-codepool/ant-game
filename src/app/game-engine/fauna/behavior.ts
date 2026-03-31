@@ -1,6 +1,8 @@
 import type { Creature } from "./fauna";
 import type { Plant } from "../flora/flora";
 import type { Vector2 } from "../shared/life";
+import type { WorldMapEngine } from "../world-map/main";
+import { BiomeType } from "../world-map/biome-generator.service";
 
 /**
  * Enum for behavior names
@@ -22,6 +24,7 @@ export interface BehaviorContext {
     yStart: number;
     yEnd: number;
   };
+  terrain: WorldMapEngine;
 }
 
 /**
@@ -166,11 +169,26 @@ export class WanderBehavior implements Behavior {
 
     if (distanceToTarget < 5 || this.targetChangeTimer >= this.targetChangeDuration) {
       // Set a new random target
-      const { worldBorders } = context;
-      creature.setTarget({
-        x: worldBorders.xStart + Math.random() * (worldBorders.xEnd - worldBorders.xStart),
-        y: worldBorders.yStart + Math.random() * (worldBorders.yEnd - worldBorders.yStart),
-      });
+      const { worldBorders, terrain } = context;
+      
+      let newTarget = { x: creature.position.x, y: creature.position.y };
+      let valid = false;
+      let attempts = 0;
+
+      while (!valid && attempts < 10) {
+        const testX = worldBorders.xStart + Math.random() * (worldBorders.xEnd - worldBorders.xStart);
+        const testY = worldBorders.yStart + Math.random() * (worldBorders.yEnd - worldBorders.yStart);
+        
+        const cell = terrain.getPixelCell(testX, testY);
+        // Avoid water
+        if (cell && cell.biome !== BiomeType.WATER) {
+          valid = true;
+          newTarget = { x: testX, y: testY };
+        }
+        attempts++;
+      }
+
+      creature.setTarget(newTarget);
       this.targetChangeTimer = 0;
     }
   }

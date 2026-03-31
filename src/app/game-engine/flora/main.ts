@@ -1,6 +1,12 @@
 import { getRandomNumber } from "../random";
 import { Plant } from "./flora";
 import type { WorldBorders } from "../world.engine";
+import { BiomeType } from "../world-map/biome-generator.service";
+import type { WorldMapEngine } from "../world-map/main";
+
+export interface FloraContext {
+  terrain: WorldMapEngine;
+}
 
 export class FloraEngine {
   _plants = new Map<number, Plant>();
@@ -39,10 +45,21 @@ export class FloraEngine {
     this._plants.set(id, new PlantClass({ position: xy, id }));
   }
 
-  doFrameCycle = (dt: number) => {
-    // Remove consumed plants
+  doFrameCycle = (dt: number, context: FloraContext) => {
+    // Handle environment logic first
     for (const plant of this.plants) {
-      if (plant.isConsumed()) {
+      if (!plant.isDead()) {
+        const cell = context.terrain.getPixelCell(plant.position.x, plant.position.y);
+        // Flora dies instantly in Water or Sand
+        if (cell && (cell.biome === BiomeType.WATER || cell.biome === BiomeType.SAND)) {
+          plant.modifyEnergy(-plant.lifeEnergy); // Instant kill
+        }
+      }
+    }
+
+    // Remove consumed and dead plants
+    for (const plant of this.plants) {
+      if (plant.isConsumed() || plant.isDead()) {
         this._plants.delete(plant.id);
       }
     }

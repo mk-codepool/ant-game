@@ -38,14 +38,15 @@ export class WorldEngine {
   }
 
   doFrameCycle = (dt: number) => {
-    // Pass plants context to fauna
+    // Pass plants and terrain context to fauna
     this.fauna.doFrameCycle(dt, {
       plants: this.flora.plants,
       worldBorders: this.worldBorders,
+      terrain: this.terrain,
     });
     
-    // Flora frame cycle (e.g. handle eaten plants, growing)
-    this.flora.doFrameCycle(dt);
+    // Flora frame cycle (e.g. handle eaten plants, growing, dying in wrong biomes)
+    this.flora.doFrameCycle(dt, { terrain: this.terrain });
     this.terrain.doFrameCycle(dt);
   }
 

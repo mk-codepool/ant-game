@@ -2,6 +2,7 @@ import { getRandomNumber } from "../random";
 import { Creature } from "./fauna";
 import type { WorldBorders } from "../world.engine";
 import type { BehaviorContext } from "./behavior";
+import { BiomeType } from "../world-map/biome-generator.service";
 
 export class FaunaEngine {
   _creatures = new Map<number, Creature>();
@@ -45,6 +46,13 @@ export class FaunaEngine {
     for (const creature of this.creatures) {
       if (!creature.isDead()) {
         creature.update(dt, context);
+        
+        // Check biome for drowning
+        const cell = context.terrain.getPixelCell(creature.position.x, creature.position.y);
+        if (cell && cell.biome === BiomeType.WATER) {
+          // Take 50 damage per second in water
+          creature.modifyEnergy(-50 * dt);
+        }
       }
     }
   }
