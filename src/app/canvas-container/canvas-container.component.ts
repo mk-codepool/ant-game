@@ -1,5 +1,7 @@
 import { Component, ElementRef, ViewChild, type AfterViewInit, type OnDestroy, NgZone } from '@angular/core';
+import * as BABYLON from '@babylonjs/core';
 import GE from '../game-engine';
+import { BabylonRenderer } from '../game-engine/rendering/babylon-renderer';
 
 @Component({
   selector: 'app-canvas-container',
@@ -15,11 +17,14 @@ import GE from '../game-engine';
       height: 100%;
       overflow: hidden;
       position: relative;
-      display: grid; /* From original styles */
+      display: grid;
     }
     .the-canvas {
       display: block;
-      background-color: #ccc; /* From original styles */
+      width: 100%;
+      height: 100%;
+      outline: none;
+      background-color: #1a1a1a;
     }
   `]
 })
@@ -27,187 +32,122 @@ export class CanvasContainerComponent implements AfterViewInit, OnDestroy {
   @ViewChild('canvasRef') canvasRef!: ElementRef<HTMLCanvasElement>;
   @ViewChild('containerRef') containerRef!: ElementRef<HTMLDivElement>;
 
-  private ctx!: CanvasRenderingContext2D;
-  private animationFrameId: number | null = null;
+  private engine!: BABYLON.Engine;
+  private scene!: BABYLON.Scene;
+  private renderer!: BabylonRenderer;
 
   constructor(private ngZone: NgZone) { }
 
   ngAfterViewInit(): void {
     const canvas = this.canvasRef.nativeElement;
     const container = this.containerRef.nativeElement;
-    this.ctx = canvas.getContext('2d')!;
 
-    // Set initial size
     setTimeout(async () => {
-      canvas.width = container.offsetWidth;
-      canvas.height = container.offsetHeight;
-
       GE.setConfig({
-        borderX: container.offsetWidth,
-        borderY: container.offsetHeight,
-        ctx: this.ctx,
+        borderX: 4000,
+        borderY: 4000,
       });
 
-      // Try to restore from autosave before starting the render loop
+      // Try to restore from autosave before starting
       await GE.autoRestore();
 
       this.ngZone.runOutsideAngular(() => {
-        this.draw();
+        this.initBabylon(canvas, container.offsetWidth, container.offsetHeight);
       });
     }, 100);
   }
 
   ngOnDestroy(): void {
-    if (this.animationFrameId) {
-      cancelAnimationFrame(this.animationFrameId);
+    window.removeEventListener("resize", this.onResize);
+    if (this.scene) {
+      this.scene.dispose();
+    }
+    if (this.engine) {
+      this.engine.dispose();
     }
   }
 
-  draw = () => {
-    if (!this.canvasRef?.nativeElement) {
-      return;
+  private onResize = () => {
+    if (this.engine) {
+      this.engine.resize();
     }
-
-    const { world } = GE;
-    const { fauna, flora, terrain } = world;
-    const creatures = fauna.creatures;
-    const plants = flora.plants;
-    const cells = Object.values(terrain.cells);
-    const canvas = this.canvasRef.nativeElement;
-
-    this.ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Draw Terrain
-    cells.forEach((cell: any) => {
-      this.ctx.fillStyle = cell.color || '#000';
-      this.ctx.fillRect(
-        cell.cx * terrain.cellSize,
-        cell.cy * terrain.cellSize,
-        terrain.cellSize,
-        terrain.cellSize
-      );
-    });
-
-    creatures.forEach((creature: any) => {
-      // Draw vision cone first (behind creature)
-      this.drawVisionCone(creature);
-
-      // Draw creature with color based on energy level
-      // Use a gradient from dark red (low energy) to bright green (high energy)
-      const maxEnergy = 250; // Expected max energy (a bit over plant energy for headroom)
-      const energyPercent = Math.min(1, Math.max(0, creature.lifeEnergy / maxEnergy));
-
-      if (creature.lifeEnergy <= 0) {
-        // Dead - very transparent black
-        this.ctx.fillStyle = 'rgba(0, 0, 0, .05)';
-      } else {
-        // Use HSL for smooth color gradient
-        // Hue: 0 (red) at low energy → 120 (green) at high energy
-        const hue = energyPercent * 120;
-        // Saturation: 70% for vibrant colors
-        const saturation = 70;
-        // Lightness: 30% at low energy → 50% at high energy (darker when low)
-        const lightness = 30 + (energyPercent * 20);
-
-        this.ctx.fillStyle = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-      }
-
-      this.ctx.save();
-      this.ctx.fillRect(creature.position.x, creature.position.y, 4, 4);
-      this.ctx.restore();
-
-      // Draw floating statistics box
-      this.drawCreatureStats(creature);
-    });
-
-    plants.forEach((plant: any) => {
-      this.ctx.fillStyle = plant.lifeEnergy ? 'rgba(96, 154, 45, 1)' : 'rgba(0, 0, 0, 1)';
-      this.ctx.save();
-      this.ctx.fillRect(plant.position.x - 6, plant.position.y - 6, 11, 11);
-      this.ctx.restore(); // Added restore
-    });
-
-    this.animationFrameId = requestAnimationFrame(this.draw);
   }
 
-  /**
-   * Draw the vision cone for a creature
-   */
-  drawVisionCone = (creature: any) => {
-    if (!creature.vision || creature.lifeEnergy <= 0) return;
+  private initBabylon(canvas: HTMLCanvasElement, width: number, height: number) {
+    this.engine = new BABYLON.Engine(canvas, true);
+    this.scene = new BABYLON.Scene(this.engine);
+    this.scene.clearColor = new BABYLON.Color4(0.1, 0.1, 0.1, 1);
 
-    const { position, vision } = creature;
-    const directionAngle = vision.getDirectionAngle();
-    const startAngle = directionAngle - vision.angle / 2;
-    const endAngle = directionAngle + vision.angle / 2;
-
-    this.ctx.save();
-
-    // Set fill style based on creature energy (more transparent when low energy)
-    const alpha = Math.min(0.15, creature.lifeEnergy / 100);
-    this.ctx.fillStyle = `rgba(255, 255, 100, ${alpha})`;
-
-    // Draw vision cone
-    this.ctx.beginPath();
-    this.ctx.moveTo(position.x + 2, position.y + 2); // Center of creature (offset for 4x4 size)
-    this.ctx.arc(position.x + 2, position.y + 2, vision.range, startAngle, endAngle);
-    this.ctx.closePath();
-    this.ctx.fill();
-
-    this.ctx.restore();
-  }
-
-  /**
-   * Draw a floating statistics box next to a creature
-   */
-  drawCreatureStats = (creature: any) => {
-    if (creature.lifeEnergy <= -20) return; // Don't draw for completely removed creatures, or barely dead ones. We can check <= 0.
-    if (creature.lifeEnergy <= 0) return;
-
-    const { position } = creature;
-    this.ctx.save();
-
-    this.ctx.font = '10px Roboto, Arial, sans-serif';
+    // Setup Camera
+    const mapWidth = 4000;
+    const mapHeight = 4000;
+    const target = new BABYLON.Vector3(mapWidth / 2, 0, mapHeight / 2);
+    const camera = new BABYLON.ArcRotateCamera(
+      "MainCamera",
+      -Math.PI / 2, // alpha
+      Math.PI / 4,  // beta
+      Math.max(width, height) * 0.8, // radius
+      target,
+      this.scene
+    );
+    // Lock rotation to give StarCraft 2 isometric feel
+    camera.lowerAlphaLimit = -Math.PI / 2;
+    camera.upperAlphaLimit = -Math.PI / 2;
+    camera.lowerBetaLimit = Math.PI / 5;
+    camera.upperBetaLimit = Math.PI / 5;
     
-    const stats = [
-      `ID: ${creature.id || '?'}`,
-      `Eng: ${Math.round(creature.lifeEnergy || 0)}`,
-      `Age: ${creature.age || 0}`,
-      `Act: ${creature.currentBehavior?.name || 'idle'}`
-    ];
+    // Enable panning using Left Drag or Right Drag
+    camera.panningSensibility = 10;
+    
+    // Restrict panning strictly to the X/Z ground plane (no flying into the sky)
+    camera.panningAxis = new BABYLON.Vector3(1, 0, 1);
+    
+    // Default ArcRotateCamera uses left click to rotate, right click to pan.
+    // If rotation is locked, we can assign left click (0) and right click (2) to pan.
+    camera.attachControl(canvas, true);
+    const pointers = camera.inputs.attached['pointers'] as any;
+    if (pointers) {
+       pointers.buttons = [0, 1, 2]; // All buttons can try to trigger actions, but rotation is locked
+       pointers.multiTouchPanning = true;
+       // We'll let left drag be handled by default since rotation is locked? 
+       // Actually, ArcRotateCameraPointersInput defaults to panning on ctrl+double click or right click.
+       // We can change the panning button to Left Click (0):
+       pointers.panningSensibility = 10;
+    }
 
-    let maxWidth = 0;
-    stats.forEach(text => {
-      const width = this.ctx.measureText(text).width;
-      if (width > maxWidth) maxWidth = width;
+    // However, to natively override panning to Left Click while still allowing our pointer down to fire for painting:
+    // Left drag pans the camera, but click/drag also emits pointer down for painting.
+    
+    // Important: To make left click pan, we must change the attached pointers internal mapping
+    if (pointers) {
+       pointers._panningMouseButton = 0; // Force left button panning
+    }
+
+    camera.wheelPrecision = 20;
+    camera.lowerRadiusLimit = 50;
+    camera.upperRadiusLimit = 4000;
+
+    // Setup Lighting
+    const light = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 1, 0), this.scene);
+    light.intensity = 0.8;
+    light.specular = new BABYLON.Color3(0.1, 0.1, 0.1);
+
+    // Create custom renderer to map 2D GE logic to 3D meshes
+    this.renderer = new BabylonRenderer(this.scene);
+    this.renderer.init();
+
+    // Connect GE tick to Babylon's loop
+    this.scene.onBeforeRenderObservable.add(() => {
+      // Get delta time in seconds
+      const dt = this.engine.getDeltaTime() / 1000;
+      GE.tick(dt);
+      this.renderer.sync();
     });
 
-    const padding = 4;
-    const lineHeight = 12;
-    const boxWidth = maxWidth + padding * 2;
-    const boxHeight = stats.length * lineHeight + padding * 2;
+    window.addEventListener("resize", this.onResize);
 
-    const boxX = position.x + 8;
-    const boxY = position.y - boxHeight / 2 + 2;
-
-    // Draw glassmorphism-like modern semitransparent background
-    this.ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
-    this.ctx.beginPath();
-    this.ctx.roundRect(boxX, boxY, boxWidth, boxHeight, 4);
-    this.ctx.fill();
-
-    // Draw text with vibrant colors
-    this.ctx.textBaseline = 'top';
-    stats.forEach((text, i) => {
-      // Highlight the first line (ID) or just use white/light gray
-      this.ctx.fillStyle = i === 0 ? '#38bdf8' : '#e2e8f0'; 
-      if (i === 1) this.ctx.fillStyle = '#4ade80'; // Energy green
-      if (i === 2) this.ctx.fillStyle = '#fbbf24'; // Age yellow
-      if (i === 3) this.ctx.fillStyle = '#c084fc'; // Activity purple
-      
-      this.ctx.fillText(text, boxX + padding, boxY + padding + (i * lineHeight));
+    this.engine.runRenderLoop(() => {
+      this.scene.render();
     });
-
-    this.ctx.restore();
   }
 }

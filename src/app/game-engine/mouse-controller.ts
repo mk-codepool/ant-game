@@ -1,11 +1,10 @@
 import { Subject } from 'rxjs';
 
 export interface MouseControllerConfig {
-  ctx?: CanvasRenderingContext2D;
+  // Config properties if needed later
 }
 
 export default class MouseController {
-  ctx: CanvasRenderingContext2D | null = null;
   x = 0;
   y = 0;
 
@@ -18,38 +17,24 @@ export default class MouseController {
   onMouseDown = this.downSubject.asObservable();
 
   setConfig = (config: MouseControllerConfig) => {
-    const {
-      ctx,
-    } = config;
-
-    if (ctx) {
-      this.ctx = ctx;
-    }
-
-    if (this.ctx) {
-      this.addMouseListeners();
-    }
+    // Config no longer requires DOM context
   }
 
-  addMouseListeners = () => {
-    if (!this.ctx) return;
+  triggerMove = (x: number, y: number) => {
+    this.x = x;
+    this.y = y;
+    this.moveSubject.next({ x, y });
+  }
 
-    this.ctx.canvas.addEventListener('mousemove', (e) => {
-      this.x = e.offsetX;
-      this.y = e.offsetY;
-      this.moveSubject.next({ x: this.x, y: this.y });
-    });
+  triggerUp = (x: number, y: number) => {
+    this.x = x;
+    this.y = y;
+    this.upSubject.next({ x, y });
+  }
 
-    this.ctx.canvas.addEventListener('mouseup', (e) => {
-      this.x = e.offsetX;
-      this.y = e.offsetY;
-      this.upSubject.next({ x: this.x, y: this.y });
-    });
-
-    this.ctx.canvas.addEventListener('mousedown', (e) => {
-      this.x = e.offsetX;
-      this.y = e.offsetY;
-      this.downSubject.next({ x: this.x, y: this.y });
-    });
+  triggerDown = (x: number, y: number) => {
+    this.x = x;
+    this.y = y;
+    this.downSubject.next({ x, y });
   }
 }

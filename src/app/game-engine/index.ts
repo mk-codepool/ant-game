@@ -7,7 +7,6 @@ export interface GameEngineConfig {
   pause?: boolean;
   borderX?: number;
   borderY?: number;
-  ctx?: CanvasRenderingContext2D | null;
   renderCallback?: () => void;
   config?: any;
 }
@@ -19,7 +18,6 @@ export class GameEngine {
     pause: false,
     borderX: 0,
     borderY: 0,
-    ctx: null,
   };
   world = WorldEngine;
   mouseController = new MouseController();
@@ -27,7 +25,6 @@ export class GameEngine {
   renderCallback = () => { };
 
   private lastTime = 0;
-  private animationFrameId: number | null = null;
 
   constructor() {
     console.info('Game engine started and aliased as GE.');
@@ -44,7 +41,7 @@ export class GameEngine {
   init = ({ renderCallback }: { renderCallback?: () => void } = {}) => {
     console.info('GE calls: init');
     this.renderCallback = renderCallback || this.renderCallback;
-    this.startEngine();
+    this.lastTime = performance.now();
   }
 
   /**
@@ -77,32 +74,16 @@ export class GameEngine {
         }
       });
     }
-
-    if (config.ctx) {
-      this.mouseController.setConfig({ ctx: config.ctx });
-    }
   }
 
-  startEngine = () => {
-    if (this.animationFrameId) return;
-    this.lastTime = performance.now();
-    this.runEngine(this.lastTime);
-  }
-
-  runEngine = (timestamp: number) => {
+  tick = (deltaTimeSeconds: number) => {
     if (this._config.pause) {
-      this.animationFrameId = requestAnimationFrame(this.runEngine);
       return;
     }
 
-    const deltaTime = (timestamp - this.lastTime) / 1000; // Convert to seconds
-    this.lastTime = timestamp;
-
     this.renderCallback();
-    this.runFrames(deltaTime);
+    this.runFrames(deltaTimeSeconds);
     this.runWorldTime();
-
-    this.animationFrameId = requestAnimationFrame(this.runEngine);
   };
 
   runFrames = (dt: number) => {

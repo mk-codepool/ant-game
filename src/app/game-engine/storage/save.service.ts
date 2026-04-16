@@ -84,7 +84,6 @@ export class SaveGameService {
             saveSlotId: slotId,
             cellsJson: JSON.stringify(world.terrain.cells),
             seedJson: JSON.stringify((world.terrain.generator as any).seed),
-            blurFactor: world.terrain.blurFactor,
             cellSize: world.terrain.cellSize,
             width: world.terrain.width,
             height: world.terrain.height,
@@ -161,7 +160,6 @@ export class SaveGameService {
           saveSlotId: id,
           cellsJson: JSON.stringify(world.terrain.cells),
           seedJson: JSON.stringify((world.terrain.generator as any).seed),
-          blurFactor: world.terrain.blurFactor,
           cellSize: world.terrain.cellSize,
           width: world.terrain.width,
           height: world.terrain.height,
@@ -192,7 +190,6 @@ export class SaveGameService {
     // Restore terrain first
     if (savedTerrain) {
       world.terrain.cells = JSON.parse(savedTerrain.cellsJson);
-      world.terrain.blurFactor = savedTerrain.blurFactor;
       world.terrain.cellSize = savedTerrain.cellSize;
       world.terrain.width = savedTerrain.width;
       world.terrain.height = savedTerrain.height;

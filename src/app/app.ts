@@ -21,6 +21,5 @@ export class App implements OnInit {
         }
       }
     });
-    GE.startEngine();
   }
 }

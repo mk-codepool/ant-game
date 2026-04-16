@@ -20,16 +20,6 @@
   </div>
   <hr />
   <div class="row">
-    <div class="col-7 text-right">Blur Edge:</div>
-    <div class="col-5">
-      <input type="range" min="0" max="1" step="0.1"
-             [value]="engine.world.terrain.blurFactor" 
-             (input)="onBlurChange($event)" 
-             style="width: 100%;">
-    </div>
-  </div>
-  <hr />
-  <div class="row">
     <div class="col-7 text-right">Frame:</div>
     <div class="col-5">{{ engine.frame }}</div>
   </div>
@@ -58,15 +48,4 @@
       💀 {{ getPlantCount(false) }} = {{ engine.world.flora.plants.length }}
     </div>
   </div>
-  <hr />
-  <div class="row">
-    <div class="col-7 text-right">Mouse X:</div>
-    <div class="col-5">{{ engine.mouseController.x }}</div>
-  </div>
-  <div class="row">
-    <div class="col-7 text-right">Mouse Y:</div>
-    <div class="col-5">{{ engine.mouseController.y }}</div>
-  </div>
-
-
 </div>

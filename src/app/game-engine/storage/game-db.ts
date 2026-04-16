@@ -38,7 +38,6 @@ export interface SavedTerrain {
   saveSlotId: number;
   cellsJson: string;
   seedJson: string;
-  blurFactor: number;
   cellSize: number;
   width: number;
   height: number;

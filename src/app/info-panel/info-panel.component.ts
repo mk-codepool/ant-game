@@ -58,13 +58,6 @@ export class InfoPanelComponent {
     });
   }
 
-  onBlurChange(event: Event) {
-    const input = event.target as HTMLInputElement;
-    const val = parseFloat(input.value);
-    this.engine.world.terrain.blurFactor = val;
-    this.engine.world.terrain.recalculateColors();
-  }
-
   getCreatureCount(alive: boolean): number {
     return this.engine.world.fauna.creatures?.filter((c: any) => alive ? c.lifeEnergy > 0 : c.lifeEnergy <= 0).length || 0;
   }

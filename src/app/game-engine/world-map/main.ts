@@ -1,3 +1,4 @@
+import { Subject } from 'rxjs';
 import { BiomeGenerator, BiomeType } from './biome-generator.service';
 
 export interface WorldCell {
@@ -26,6 +27,7 @@ export interface WorldMapConfig {
 export class WorldMapEngine {
   cells: Record<string, WorldCell> = {};
   generator = new BiomeGenerator();
+  onMapChanged = new Subject<void>();
 
   width = 0;
   height = 0;
@@ -72,56 +74,7 @@ export class WorldMapEngine {
       }
     }
 
-    // Second pass: Update colors to blend borders
-    this.recalculateColors();
-  }
-
-  recalculateColors() {
-    const cols = Math.ceil(this.width / this.cellSize);
-    const rows = Math.ceil(this.height / this.cellSize);
-
-    for (let x = 0; x < cols; x++) {
-      for (let y = 0; y < rows; y++) {
-        this.updateCellColor(x, y);
-      }
-    }
-  }
-
-  blurFactor = 0.5; // 0 = no blur, 1 = full 3x3 blur
-
-  updateCellColor(cx: number, cy: number) {
-    const cell = this.getCell(cx, cy);
-    if (!cell) return;
-
-    let r = 0, g = 0, b = 0;
-    let count = 0;
-
-    // Look at 3x3 area for blending
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        const neighbor = this.getCell(cx + dx, cy + dy);
-        // If out of bounds, count as the same biome to keep edges solid
-        const biome = neighbor ? neighbor.biome : cell.biome;
-        const color = BiomeColors[biome];
-        r += color[0];
-        g += color[1];
-        b += color[2];
-        count++;
-      }
-    }
-
-    const blurredR = r / count;
-    const blurredG = g / count;
-    const blurredB = b / count;
-    
-    const baseColor = BiomeColors[cell.biome];
-
-    // Interpolate between the completely raw cell color and the blurred average
-    const finalR = Math.round(baseColor[0] * (1 - this.blurFactor) + blurredR * this.blurFactor);
-    const finalG = Math.round(baseColor[1] * (1 - this.blurFactor) + blurredG * this.blurFactor);
-    const finalB = Math.round(baseColor[2] * (1 - this.blurFactor) + blurredB * this.blurFactor);
-
-    cell.color = `rgb(${finalR}, ${finalG}, ${finalB})`;
+    this.onMapChanged.next();
   }
 
   reseedMap() {
@@ -144,12 +97,7 @@ export class WorldMapEngine {
           this.setCell(cx, cy, { cx, cy, biome, z: 1 });
       }
 
-      // Update color for this cell and its neighbors so blending updates in real-time
-      for (let dx = -1; dx <= 1; dx++) {
-        for (let dy = -1; dy <= 1; dy++) {
-          this.updateCellColor(cx + dx, cy + dy);
-        }
-      }
+      this.onMapChanged.next();
   }
 
   getPixelCell(px: number, py: number): WorldCell | undefined {
@@ -163,6 +111,8 @@ export class WorldMapEngine {
   }
 
   setCell(cx: number, cy: number, cell: WorldCell) {
+      const color = BiomeColors[cell.biome];
+      cell.color = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
       this.cells[this.getHash(cx, cy)] = cell;
   }
 

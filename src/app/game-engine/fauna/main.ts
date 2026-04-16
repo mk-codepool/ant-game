@@ -50,9 +50,12 @@ export class FaunaEngine {
         // Check biome for drowning
         const cell = context.terrain.getPixelCell(creature.position.x, creature.position.y);
         if (cell && cell.biome === BiomeType.WATER) {
-          // Take 50 damage per second in water
-          creature.modifyEnergy(-50 * dt);
+          // Instant drown
+          creature.die('drowned');
         }
+      } else {
+        // Still call update to increase death timer
+        creature.update(dt, context);
       }
     }
   }
@@ -60,7 +63,11 @@ export class FaunaEngine {
   doSmallCycle = () => {
     this.creatures.forEach(thing => {
       thing.ageUp();
-      if (thing.lifeEnergy < -20) {
+      // Keep corpse around for 3 seconds for animation
+      if (thing.lifeEnergy <= 0 && (!thing.deathReason || thing.timeSinceDeath > 3)) {
+        this._creatures.delete(thing.id);
+      } else if (thing.lifeEnergy < -20) {
+        // Fallback catch-all
         this._creatures.delete(thing.id);
       }
     });

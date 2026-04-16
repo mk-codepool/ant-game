@@ -1,6 +1,5 @@
 .infopanel-container {
   padding: 15px;
-  color: black; /* Bootstrap default is black, but let's see. React had no specific color, but main.scss might have. */
 }
 .row {
   display: flex;

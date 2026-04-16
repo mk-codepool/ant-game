@@ -26,6 +26,10 @@ export class Creature extends Life {
   // Track last position for calculating energy loss
   private lastPosition: Vector2;
 
+  // Death State
+  deathReason: string = '';
+  timeSinceDeath: number = 0;
+
   constructor(props: CreatureProps) {
     super(props);
     this.lifeEnergy = 20;
@@ -101,8 +105,11 @@ export class Creature extends Life {
    * Main update loop for the creature - evaluates goals and executes behaviors
    */
   update = (dt: number, context: BehaviorContext): void => {
-    // Don't update if dead
-    if (this.isDead()) return;
+    // Don't update behavior if dead, just increase death timer
+    if (this.isDead()) {
+      this.timeSinceDeath += dt;
+      return;
+    }
 
     // Update vision direction to look towards target BEFORE evaluating behaviors
     // This allows the creature to "look around" in the direction it's about to move
@@ -143,7 +150,15 @@ export class Creature extends Life {
    * (Energy loss is handled by movement)
    */
   override ageUp = (): void => {
+    if (this.isDead()) return;
     this.age++;
     // Don't decrease energy here - movement already handles energy loss
+  }
+
+  die = (reason: string): void => {
+    if (this.isDead()) return; // Already dead
+    this.lifeEnergy = 0;
+    this.deathReason = reason;
+    this.timeSinceDeath = 0;
   }
 }
