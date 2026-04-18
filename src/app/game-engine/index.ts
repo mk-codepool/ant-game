@@ -81,7 +81,6 @@ export class GameEngine {
       return;
     }
 
-    this.renderCallback();
     this.runFrames(deltaTimeSeconds);
     this.runWorldTime();
   };

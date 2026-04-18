@@ -341,3 +341,40 @@ ngOnDestroy() {
   this.sub?.unsubscribe();
 }
 ```
+
+---
+
+## 2026-04 Tile/Grid Update (Current)
+
+The terrain system has a dedicated tile API and should be treated as the canonical way to do map math.
+
+Source files:
+- `src/app/game-engine/world-map/tile-system.ts`
+- `src/app/game-engine/world-map/main.ts`
+
+Use these APIs from `GE.world.terrain`:
+- `getTileAtWorld(x, y)`
+- `getTileCenter(tx, ty)`
+- `getTileNeighbors(tx, ty, includeDiagonals?)`
+- `forEachTileInWorldRect(x1, y1, x2, y2, callback)`
+- `setTileBiome(tx, ty, biome, emitChange?)`
+- `paintBiomeCircle(centerX, centerY, radius, biome)`
+- `findTilePath(startTile, endTile, options?)`
+- `findWorldPath(startX, startY, endX, endY, options?)`
+
+Rules:
+- Prefer tile-level methods for biome painting and spatial queries.
+- Keep `cellSize`, map `width/height`, and tile dimensions synchronized using:
+  - `setCellSize(...)`
+  - `setMapDimensions(...)`
+- On save restore, do not assign `terrain.width/height/cellSize` directly; call the setters.
+
+RTS packages expected in dependencies:
+- `@babylonjs/materials`
+- `@babylonjs/addons`
+- `easystarjs`
+
+Pathfinding policy:
+- Use `findTilePath` for AI/path-planning logic.
+- Use `findWorldPath` when movement code expects world coordinates.
+- Default walkable biomes are grass and sand; water is blocked unless explicitly changed in options.

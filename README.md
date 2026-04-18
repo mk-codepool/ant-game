@@ -1,59 +1,58 @@
 # AntGame
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.0.0.
+AntGame is a Babylon.js + Angular sandbox for RTS-style simulation. The map now has a dedicated tile API for terrain edits and spatial calculations.
 
-## Development server
-
-To start a local development server, run:
+## Run
 
 ```bash
-ng serve
+npm install
+npm start
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+## Tile System
 
-## Code scaffolding
+Tile logic is implemented in:
+- `src/app/game-engine/world-map/tile-system.ts`
+- `src/app/game-engine/world-map/main.ts`
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+Current defaults:
+- world size: `4000 x 4000` units
+- tile size: `20` units
+- grid: `200 x 200` tiles
+
+Main API surface on `GE.world.terrain`:
+- `getTileAtWorld(x, y)`
+- `getTileCenter(tx, ty)`
+- `getTileNeighbors(tx, ty, includeDiagonals?)`
+- `forEachTileInWorldRect(x1, y1, x2, y2, callback)`
+- `setTileBiome(tx, ty, biome, emitChange?)`
+- `paintBiomeCircle(centerX, centerY, radius, biome)`
+- `findTilePath(startTile, endTile, options?)`
+- `findWorldPath(startX, startY, endX, endY, options?)`
+
+Existing APIs still work:
+- `setPixelBiome(px, py, biome)`
+- `getPixelCell(px, py)`
+
+Pathfinding (`easystarjs`) defaults:
+- walkable biomes: `GRASS`, `SAND`
+- blocked biome: `WATER`
+- diagonals: enabled by default (set `allowDiagonals: false` to disable)
+
+## RTS-Oriented Dependencies
+
+Declared in `package.json`:
+- `@babylonjs/materials` (grid/shader helpers)
+- `@babylonjs/addons` (navigation plugin entrypoint)
+- `easystarjs` (tile-based A* pathfinding)
+
+Install command:
 
 ```bash
-ng generate component component-name
+npm install @babylonjs/materials @babylonjs/addons easystarjs
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+## Notes
 
-```bash
-ng generate --help
-```
-
-## Building
-
-To build the project run:
-
-```bash
-ng build
-```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+- Autosave restore now keeps terrain dimensions and tile system dimensions synchronized via `setCellSize(...)` + `setMapDimensions(...)`.
+- The renderer keeps biome texture and chessboard overlay; camera centering uses restored terrain dimensions.

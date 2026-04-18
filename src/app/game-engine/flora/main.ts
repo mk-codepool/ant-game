@@ -10,6 +10,7 @@ export interface FloraContext {
 
 export class FloraEngine {
   _plants = new Map<number, Plant>();
+  private _cachedPlants: Plant[] | null = null;
   private nextPlantId = 1;
 
   worldBorders: WorldBorders = { xStart: 0, xEnd: 0, yStart: 0, yEnd: 0 };
@@ -18,8 +19,11 @@ export class FloraEngine {
     plant: Plant,
   }
 
-  get plants() {
-    return Array.from(this._plants.values());
+  get plants(): Plant[] {
+    if (!this._cachedPlants) {
+      this._cachedPlants = Array.from(this._plants.values());
+    }
+    return this._cachedPlants;
   }
 
   setConfig = (config: { worldBorders?: WorldBorders }) => {
@@ -43,6 +47,7 @@ export class FloraEngine {
     const xy = !x || !y ? this.getRandomCoordinates() : this.getExactCoordinates(x, y);
     const id = this.nextPlantId++;
     this._plants.set(id, new PlantClass({ position: xy, id }));
+    this._cachedPlants = null;
   }
 
   doFrameCycle = (dt: number, context: FloraContext) => {
@@ -61,6 +66,7 @@ export class FloraEngine {
     for (const plant of this.plants) {
       if (plant.isConsumed() || plant.isDead()) {
         this._plants.delete(plant.id);
+        this._cachedPlants = null;
       }
     }
   }
@@ -70,6 +76,7 @@ export class FloraEngine {
       thing.ageUp();
       if (thing.lifeEnergy < -20) {
         this._plants.delete(thing.id);
+        this._cachedPlants = null;
       }
     });
   }

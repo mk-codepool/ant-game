@@ -1,51 +1,102 @@
 <div class="infopanel-container">
-  <div class="row">
-    <div class="col">
-      <div class="btn-group btn-block">
-        <button type="button" class="btn btn-secondary" (click)="resetBiomes()">Big Bang</button>
-        <button type="button" class="btn btn-secondary" (click)="pool()">Pool</button>
-        <button type="button" class="btn btn-secondary" (click)="setCanvasDownNewCreature(creaturesDef.creature)">Creature</button>
-        <button type="button" class="btn btn-secondary" (click)="setCanvasDownNewPlant(plantsDef.plant)">Plant</button>
+  <div class="header">
+    <h2>Game Dashboard</h2>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn" [class.active]="activeTab === 'config'" (click)="setTab('config')">Config</button>
+    <button class="tab-btn" [class.active]="activeTab === 'actions'" (click)="setTab('actions')">Actions</button>
+    <button class="tab-btn" [class.active]="activeTab === 'stats'" (click)="setTab('stats')">Stats</button>
+  </div>
+
+  <div class="tab-content">
+    <!-- CONFIGURATION TAB -->
+    <div *ngIf="activeTab === 'config'" class="panel-section fade-in">
+      <h3>Camera</h3>
+      <div class="form-group">
+        <label>Zoom Factor ({{ getZoomFactor() | number:'1.0-0' }})</label>
+        <input type="range" class="custom-slider full-width" min="400" max="1000" step="10" [ngModel]="getZoomFactor()"
+          (ngModelChange)="setZoomFactor($event)" />
+      </div>
+      <div class="btn-group btn-block mt-3">
+        <button class="btn btn-primary" title="Save Config" (click)="saveConfig()">💾</button>
+        <button class="btn btn-secondary" title="Reset Zoom to Default" (click)="resetConfig()">↩️</button>
+        <button class="btn btn-danger" style="background-color: #dc3545; border-color: #dc3545; color: white;"
+          title="Clear Save Data & Reload" (click)="clearSaveData()">🗑️</button>
       </div>
     </div>
-  </div>
-  <div class="row" style="margin-top: 5px;">
-    <div class="col">
+
+    <!-- ACTIONS TAB -->
+    <div *ngIf="activeTab === 'actions'" class="panel-section fade-in">
+      <h3>Environment</h3>
+      <div class="btn-group btn-block">
+        <button type="button" class="btn btn-secondary" (click)="resetBiomes()">resetBiomes</button>
+        <button type="button" class="btn btn-secondary" (click)="pool()">pool</button>
+      </div>
+
+      <h3 class="mt-4">Brushes - Spawning</h3>
+      <div class="btn-group btn-block">
+        <button type="button" class="btn btn-secondary"
+          (click)="setCanvasDownNewCreature(creaturesDef.creature)">Creature</button>
+        <button type="button" class="btn btn-secondary" (click)="setCanvasDownNewPlant(plantsDef.plant)">Plant</button>
+      </div>
+
+      <h3 class="mt-4">Brushes - Terrain</h3>
       <div class="btn-group btn-block">
         <button type="button" class="btn btn-secondary" (click)="setCanvasDownBiome(biomeType.GRASS)">Grass</button>
         <button type="button" class="btn btn-secondary" (click)="setCanvasDownBiome(biomeType.SAND)">Sand</button>
         <button type="button" class="btn btn-secondary" (click)="setCanvasDownBiome(biomeType.WATER)">Water</button>
       </div>
     </div>
-  </div>
-  <hr />
-  <div class="row">
-    <div class="col-7 text-right">Frame:</div>
-    <div class="col-5">{{ engine.frame }}</div>
-  </div>
-  <div class="row">
-    <div class="col-7 text-right">Small cycle:</div>
-    <div class="col-5">{{ engine.worldCycle.small }}</div>
-  </div>
-  <div class="row">
-    <div class="col-7 text-right">Big cycle:</div>
-    <div class="col-5">{{ engine.worldCycle.big }}</div>
-  </div>
-  <div class="row">
-    <div class="col-7 text-right">Epic cycle:</div>
-    <div class="col-5">{{ engine.worldCycle.epic }}</div>
-  </div>
-  <hr />
-  <div class="row">
-    <div class="col text-center">
-      🙂 {{ getCreatureCount(true) }}
-      💀 {{ getCreatureCount(false) }} = {{ engine.world.fauna.creatures.length }}
-    </div>
-  </div>
-  <div class="row">
-    <div class="col text-center">
-      🌳 {{ getPlantCount(true) }}
-      💀 {{ getPlantCount(false) }} = {{ engine.world.flora.plants.length }}
+
+    <!-- STATS TAB -->
+    <div *ngIf="activeTab === 'stats'" class="panel-section fade-in">
+      <h3>Simulation Cycles</h3>
+      <div class="stat-row">
+        <span>Frame:</span>
+        <span class="value">{{ engine.frame }}</span>
+      </div>
+      <div class="stat-row">
+        <span>Small cycle:</span>
+        <span class="value">{{ engine.worldCycle.small }}</span>
+      </div>
+      <div class="stat-row">
+        <span>Big cycle:</span>
+        <span class="value">{{ engine.worldCycle.big }}</span>
+      </div>
+      <div class="stat-row">
+        <span>Epic cycle:</span>
+        <span class="value">{{ engine.worldCycle.epic }}</span>
+      </div>
+
+      <h3 class="mt-4">Population</h3>
+      <div class="population-card">
+        <div class="pop-stat">
+          <span class="icon">🙂</span>
+          <span class="count">{{ getCreatureCount(true) }}</span>
+          <span class="desc">Alive Creatures</span>
+        </div>
+        <div class="pop-stat">
+          <span class="icon">💀</span>
+          <span class="count">{{ getCreatureCount(false) }}</span>
+          <span class="desc">Dead</span>
+        </div>
+        <div class="pop-total">Total: {{ engine.world.fauna.creatures.length }}</div>
+      </div>
+
+      <div class="population-card mt-3">
+        <div class="pop-stat">
+          <span class="icon">🌳</span>
+          <span class="count">{{ getPlantCount(true) }}</span>
+          <span class="desc">Alive Plants</span>
+        </div>
+        <div class="pop-stat">
+          <span class="icon">🥀</span>
+          <span class="count">{{ getPlantCount(false) }}</span>
+          <span class="desc">Decayed</span>
+        </div>
+        <div class="pop-total">Total: {{ engine.world.flora.plants.length }}</div>
+      </div>
     </div>
   </div>
 </div>

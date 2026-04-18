@@ -189,17 +189,43 @@ export class SaveGameService {
 
     // Restore terrain first
     if (savedTerrain) {
+      const restoredWidth = Math.max(0, savedTerrain.width || 400);
+      const restoredHeight = Math.max(0, savedTerrain.height || 400);
+      const restoredBorders = {
+        xStart: 0,
+        xEnd: restoredWidth,
+        yStart: 0,
+        yEnd: restoredHeight,
+      };
+
+      // Keep world borders in sync with the restored terrain size
+      // without forcing terrain regeneration.
+      world.worldBorders = restoredBorders;
+      world.fauna.setConfig({ worldBorders: restoredBorders });
+      world.flora.setConfig({ worldBorders: restoredBorders });
+      world.terrain.worldBorders = restoredBorders;
+
       world.terrain.cells = JSON.parse(savedTerrain.cellsJson);
-      world.terrain.cellSize = savedTerrain.cellSize;
-      world.terrain.width = savedTerrain.width;
-      world.terrain.height = savedTerrain.height;
+      world.terrain.setCellSize(savedTerrain.cellSize);
+      world.terrain.setMapDimensions(restoredWidth, restoredHeight);
+
+      // Validate that the cells are fully populated and have colors
+      if (!world.terrain.cells || world.terrain.cells.length === 0 || !world.terrain.cells[0]?.biome) {
+         console.warn('[SaveService] Loaded terrain cells are invalid. Regenerating map.');
+         world.terrain.generateMap();
+      }
 
       try {
         const seedData = JSON.parse(savedTerrain.seedJson);
-        if (Array.isArray(seedData)) {
+        if (Array.isArray(seedData) && seedData.length > 0) {
           (world.terrain.generator as any).seed = seedData;
+        } else {
+          // Reseed if seed data is invalid
+          (world.terrain.generator as any).reseed();
         }
-      } catch { /* best-effort */ }
+      } catch { 
+        (world.terrain.generator as any).reseed();
+      }
     }
 
     // Restore creatures

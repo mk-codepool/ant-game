@@ -6,6 +6,7 @@ import { BiomeType } from "../world-map/biome-generator.service";
 
 export class FaunaEngine {
   _creatures = new Map<number, Creature>();
+  private _cachedCreatures: Creature[] | null = null;
   private nextCreatureId = 1;
 
   worldBorders: WorldBorders = { xStart: 0, xEnd: 0, yStart: 0, yEnd: 0 };
@@ -14,8 +15,11 @@ export class FaunaEngine {
     creature: Creature,
   }
 
-  get creatures() {
-    return Array.from(this._creatures.values());
+  get creatures(): Creature[] {
+    if (!this._cachedCreatures) {
+      this._cachedCreatures = Array.from(this._creatures.values());
+    }
+    return this._cachedCreatures;
   }
 
   setConfig = (config: { worldBorders?: WorldBorders }) => {
@@ -40,6 +44,7 @@ export class FaunaEngine {
     const id = this.nextCreatureId++;
     const speed = getRandomNumber(30, 90);
     this._creatures.set(id, new CreatureClass({ position: xy, id, speed }));
+    this._cachedCreatures = null;
   }
 
   doFrameCycle = (dt: number, context: BehaviorContext) => {
@@ -66,9 +71,11 @@ export class FaunaEngine {
       // Keep corpse around for 3 seconds for animation
       if (thing.lifeEnergy <= 0 && (!thing.deathReason || thing.timeSinceDeath > 3)) {
         this._creatures.delete(thing.id);
+        this._cachedCreatures = null;
       } else if (thing.lifeEnergy < -20) {
         // Fallback catch-all
         this._creatures.delete(thing.id);
+        this._cachedCreatures = null;
       }
     });
   }
