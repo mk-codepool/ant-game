@@ -38,6 +38,15 @@ const BIOME_PALETTES: Record<string, BiomePalette> = {
 // ── Texture detail: pixels per cell side (8 → 50×8 = 400px texture) ────
 const CELL_DETAIL = 8;
 
+// ── Biome blending constants ────────────────────────────────────────────
+const BLEND_RADIUS = 3; // pixels of blend zone at each cell edge
+
+const BIOME_PRIORITY: Record<string, number> = {
+  [BiomeType.WATER]: 1,  // lowest — sits below everything
+  [BiomeType.SAND]:  2,  // sand drifts over water
+  [BiomeType.GRASS]: 3,  // vegetation overgrows sand & shore
+};
+
 // ── Tiny deterministic spatial hash for per-pixel variation ─────────────
 function pixelHash(x: number, y: number): number {
   let h = (x * 374761393 + y * 668265263) | 0;
@@ -48,6 +57,50 @@ function pixelHash(x: number, y: number): number {
 /** Returns a 0..1 value unique to (x,y) for micro-variation */
 function pixelNoise(x: number, y: number): number {
   return (pixelHash(x, y) % 10000) / 10000;
+}
+
+/**
+ * Compute the raw RGB color for a single pixel of a given biome + elevation.
+ * Extracted so both the base cell and blended neighbors use identical rendering.
+ */
+function computeBiomePixelColor(
+  biome: BiomeType, z: number, px: number, py: number
+): [number, number, number] {
+  const palette = BIOME_PALETTES[biome];
+  if (!palette) return [0, 0, 0];
+
+  const elevT = Math.min(1, Math.max(0, (z || 0) / 10));
+  const pNoise = pixelNoise(px, py);
+  const t = Math.min(1, Math.max(0, elevT + (pNoise - 0.5) * 0.25));
+
+  let r = palette.low[0] + (palette.high[0] - palette.low[0]) * t;
+  let g = palette.low[1] + (palette.high[1] - palette.low[1]) * t;
+  let b = palette.low[2] + (palette.high[2] - palette.low[2]) * t;
+
+  // Fine-grain brightness dithering
+  const dither = (pNoise - 0.5) * 16;
+  r += dither;
+  g += dither * 0.8;
+  b += dither * 0.6;
+
+  // ── Water wave pattern ──
+  if (biome === BiomeType.WATER) {
+    const wave = Math.sin((px * 0.4 + py * 0.6) * 0.8) * 10;
+    r += wave; g += wave * 1.2; b += wave * 0.5;
+  }
+
+  // ── Grass blade specks ──
+  if (biome === BiomeType.GRASS) {
+    if (pNoise > 0.82) { r *= 0.7; g *= 0.85; b *= 0.65; }
+    if (pNoise < 0.03) { r = Math.min(255, r + 60); g = Math.min(255, g + 30); b = Math.min(255, b + 50); }
+  }
+
+  // ── Sand grain specks ──
+  if (biome === BiomeType.SAND) {
+    if (pNoise > 0.85) { r = Math.min(255, r + 25); g = Math.min(255, g + 20); b = Math.min(255, b + 10); }
+  }
+
+  return [r, g, b];
 }
 
 export class BabylonRenderer {
@@ -294,56 +347,78 @@ export class BabylonRenderer {
         let r = 0, g = 0, b = 0;
 
         if (cell) {
-          const palette = BIOME_PALETTES[cell.biome];
-          if (palette) {
-            // Elevation gradient
-            const elevT = Math.min(1, Math.max(0, (cell.z || 0) / 10));
+          // Base color for this cell's biome
+          [r, g, b] = computeBiomePixelColor(cell.biome, cell.z, px, py);
 
-            // Per-pixel noise for organic texture within the cell
-            const pNoise = pixelNoise(px, py);  // 0..1
-            const t = Math.min(1, Math.max(0, elevT + (pNoise - 0.5) * 0.25));
+          // ── Biome border blending ──────────────────────────────────────
+          const localX = px % CELL_DETAIL;
+          const localY = py % CELL_DETAIL;
+          const nearEdge =
+            localX < BLEND_RADIUS || localX >= CELL_DETAIL - BLEND_RADIUS ||
+            localY < BLEND_RADIUS || localY >= CELL_DETAIL - BLEND_RADIUS;
 
-            r = palette.low[0] + (palette.high[0] - palette.low[0]) * t;
-            g = palette.low[1] + (palette.high[1] - palette.low[1]) * t;
-            b = palette.low[2] + (palette.high[2] - palette.low[2]) * t;
+          if (nearEdge) {
+            const selfPriority = BIOME_PRIORITY[cell.biome] || 0;
+            let totalWeight = 0;
+            let blendR = 0, blendG = 0, blendB = 0;
 
-            // Fine-grain brightness dithering per pixel
-            const dither = (pNoise - 0.5) * 16;
-            r += dither;
-            g += dither * 0.8;
-            b += dither * 0.6;
+            // Distance from each cell edge (in pixels)
+            const distL = localX;
+            const distR = CELL_DETAIL - 1 - localX;
+            const distT = localY;
+            const distB = CELL_DETAIL - 1 - localY;
 
-            // ── Water wave pattern ──
-            if (cell.biome === BiomeType.WATER) {
-              const wave = Math.sin((px * 0.4 + py * 0.6) * 0.8) * 10;
-              r += wave;
-              g += wave * 1.2;
-              b += wave * 0.5;
-            }
+            // Inline helper: sample one neighbor direction
+            const sampleNeighbor = (
+              dx: number, dy: number, edgeDist: number, diagScale: number
+            ) => {
+              if (edgeDist >= BLEND_RADIUS) return;
+              const nx = cx + dx;
+              const ny = cy + dy;
+              if (nx < 0 || nx >= cols || ny < 0 || ny >= rows) return;
 
-            // ── Grass blade specks ──
-            if (cell.biome === BiomeType.GRASS) {
-              // Occasional dark "blade" pixels
-              if (pNoise > 0.82) {
-                r *= 0.7;
-                g *= 0.85;
-                b *= 0.65;
+              const neighbor = cells[ny * cols + nx];
+              if (!neighbor || neighbor.biome === cell!.biome) return;
+              if ((BIOME_PRIORITY[neighbor.biome] || 0) <= selfPriority) return;
+
+              // Noise-perturbed weight → organic jagged border
+              const noiseMod = 0.4 + pixelNoise(px + dx * 997, py + dy * 991) * 0.9;
+              const weight =
+                Math.max(0, Math.min(0.75, (1 - edgeDist / BLEND_RADIUS) * noiseMod))
+                * diagScale;
+
+              const [nr, ng, nb] = computeBiomePixelColor(
+                neighbor.biome, neighbor.z, px, py
+              );
+              blendR += nr * weight;
+              blendG += ng * weight;
+              blendB += nb * weight;
+              totalWeight += weight;
+            };
+
+            // 4 cardinal neighbors
+            sampleNeighbor(-1,  0, distL, 1.0);
+            sampleNeighbor( 1,  0, distR, 1.0);
+            sampleNeighbor( 0, -1, distT, 1.0);
+            sampleNeighbor( 0,  1, distB, 1.0);
+            // 4 diagonal neighbors (half weight for softer corners)
+            sampleNeighbor(-1, -1, Math.max(distL, distT), 0.5);
+            sampleNeighbor( 1, -1, Math.max(distR, distT), 0.5);
+            sampleNeighbor(-1,  1, Math.max(distL, distB), 0.5);
+            sampleNeighbor( 1,  1, Math.max(distR, distB), 0.5);
+
+            // Composite: mix neighbor colors into self
+            if (totalWeight > 0) {
+              if (totalWeight > 0.85) {
+                const scale = 0.85 / totalWeight;
+                blendR *= scale;
+                blendG *= scale;
+                blendB *= scale;
+                totalWeight = 0.85;
               }
-              // Occasional bright "flower" pixels
-              if (pNoise < 0.03) {
-                r = Math.min(255, r + 60);
-                g = Math.min(255, g + 30);
-                b = Math.min(255, b + 50);
-              }
-            }
-
-            // ── Sand grain specks ──
-            if (cell.biome === BiomeType.SAND) {
-              if (pNoise > 0.85) {
-                r = Math.min(255, r + 25);
-                g = Math.min(255, g + 20);
-                b = Math.min(255, b + 10);
-              }
+              r = r * (1 - totalWeight) + blendR;
+              g = g * (1 - totalWeight) + blendG;
+              b = b * (1 - totalWeight) + blendB;
             }
           }
         }
