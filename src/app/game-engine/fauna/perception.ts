@@ -1,5 +1,5 @@
 import type { Vector2 } from "../shared/life";
-import type { Plant } from "../flora/flora";
+import type { BaseFlora } from "../flora/entities/base-flora";
 
 /**
  * Vision-based perception system for creatures
@@ -63,7 +63,7 @@ export class Vision {
   /**
    * Finds all plants visible to the creature
    */
-  findVisiblePlants(plants: Plant[], position: Vector2): Plant[] {
+  findVisiblePlants(plants: BaseFlora[], position: Vector2): BaseFlora[] {
     return plants.filter(plant => {
       // Don't see dead/consumed plants
       if (plant.lifeEnergy <= 0) return false;

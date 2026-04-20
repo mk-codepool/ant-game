@@ -39,10 +39,17 @@ export interface TilePathOptions {
   tileCosts?: Partial<Record<BiomeType, number>>;
 }
 
+export interface DirtyRect {
+  minTx: number;
+  minTy: number;
+  maxTx: number;
+  maxTy: number;
+}
+
 export class WorldMapEngine {
   cells: WorldCell[] = [];
   generator = new BiomeGenerator();
-  onMapChanged = new Subject<void>();
+  onMapChanged = new Subject<DirtyRect | null>();
 
   width = 0;
   height = 0;
@@ -105,7 +112,7 @@ export class WorldMapEngine {
     }
 
     if (emitChange) {
-      this.onMapChanged.next();
+      this.onMapChanged.next({ minTx: tx, minTy: ty, maxTx: tx, maxTy: ty });
     }
     return true;
   }
@@ -115,6 +122,8 @@ export class WorldMapEngine {
 
     const radiusSquared = radius * radius;
     let changedTiles = 0;
+
+    let minTx = Infinity, minTy = Infinity, maxTx = -Infinity, maxTy = -Infinity;
 
     this.forEachTileInWorldRect(
       centerX - radius,
@@ -130,13 +139,17 @@ export class WorldMapEngine {
           const changed = this.setTileBiome(tx, ty, biome, false);
           if (changed) {
             changedTiles++;
+            if (tx < minTx) minTx = tx;
+            if (ty < minTy) minTy = ty;
+            if (tx > maxTx) maxTx = tx;
+            if (ty > maxTy) maxTy = ty;
           }
         }
       }
     );
 
     if (changedTiles > 0) {
-      this.onMapChanged.next();
+      this.onMapChanged.next({ minTx, minTy, maxTx, maxTy });
     }
 
     return changedTiles;
@@ -214,7 +227,7 @@ export class WorldMapEngine {
       }
     }
 
-    this.onMapChanged.next();
+    this.onMapChanged.next(null);
   }
 
   reseedMap() {

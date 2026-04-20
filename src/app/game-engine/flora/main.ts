@@ -1,25 +1,26 @@
 import { getRandomNumber } from "../random";
-import { Plant } from "./flora";
 import type { WorldBorders } from "../world.engine";
 import { BiomeType } from "../world-map/biome-generator.service";
 import type { WorldMapEngine } from "../world-map/main";
+import { BaseFlora } from "./entities/base-flora";
+import { Bush } from "./entities/bush";
 
 export interface FloraContext {
   terrain: WorldMapEngine;
 }
 
 export class FloraEngine {
-  _plants = new Map<number, Plant>();
-  private _cachedPlants: Plant[] | null = null;
+  _plants = new Map<number, BaseFlora>();
+  private _cachedPlants: BaseFlora[] | null = null;
   private nextPlantId = 1;
 
   worldBorders: WorldBorders = { xStart: 0, xEnd: 0, yStart: 0, yEnd: 0 };
   
   plantsDef = {
-    plant: Plant,
+    bush: Bush,
   }
 
-  get plants(): Plant[] {
+  get plants(): BaseFlora[] {
     if (!this._cachedPlants) {
       this._cachedPlants = Array.from(this._plants.values());
     }
@@ -42,9 +43,33 @@ export class FloraEngine {
     y: getRandomNumber(this.worldBorders.yStart, this.worldBorders.yEnd)
   });
 
-  createPlant = (newPlant?: typeof Plant, x?: number, y?: number) => {
-    const PlantClass = newPlant || this.plantsDef.plant;
-    const xy = !x || !y ? this.getRandomCoordinates() : this.getExactCoordinates(x, y);
+  createPlant = <T extends BaseFlora>(newPlant?: new (props: any) => T, x?: number, y?: number) => {
+    const PlantClass = newPlant || this.plantsDef.bush;
+    const dummyPlant = new PlantClass({ position: {x: 0, y: 0}, id: 0 }); // to check hitbox radius easily
+    const hitbox = dummyPlant.hitboxRadius;
+
+    const isTooClose = (testX: number, testY: number) => {
+      for (const p of this.plants) {
+        const dx = p.position.x - testX;
+        const dy = p.position.y - testY;
+        const minRadius = p.hitboxRadius + hitbox;
+        if (dx * dx + dy * dy < minRadius * minRadius) return true;
+      }
+      return false;
+    };
+
+    let xy = { x: 0, y: 0 };
+    if (!x || !y) {
+      let attempts = 0;
+      do {
+        xy = this.getRandomCoordinates();
+        attempts++;
+      } while (isTooClose(xy.x, xy.y) && attempts < 20);
+    } else {
+      xy = this.getExactCoordinates(x, y);
+      if (isTooClose(xy.x, xy.y)) return; // prevent spawning if too close
+    }
+
     const id = this.nextPlantId++;
     this._plants.set(id, new PlantClass({ position: xy, id }));
     this._cachedPlants = null;

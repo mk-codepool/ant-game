@@ -34,7 +34,7 @@ export class CanvasContainerComponent implements AfterViewInit, OnDestroy {
 
   private readonly fallbackMapSize = 1000;
   private readonly initialCameraAlpha = -Math.PI / 4;
-  private readonly initialCameraBeta = Math.PI / 4;
+  private readonly initialCameraBeta = Math.PI / 3;
   private readonly initialRadiusMultiplier = 1.4;
 
   private engine!: BABYLON.Engine;
@@ -146,7 +146,7 @@ export class CanvasContainerComponent implements AfterViewInit, OnDestroy {
     }
 
     camera.wheelPrecision = .2;
-    camera.lowerRadiusLimit = 400;
+    camera.lowerRadiusLimit = 50;
     camera.upperRadiusLimit = 1000;
 
     // Ensure every full refresh starts from map center with default zoom/angle.
@@ -155,8 +155,8 @@ export class CanvasContainerComponent implements AfterViewInit, OnDestroy {
     // Setup Lighting
     console.log('[DEBUG] Setting up lighting');
     const light = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 1, 0), this.scene);
-    light.intensity = 0.8;
-    light.specular = new BABYLON.Color3(0.1, 0.1, 0.1);
+    light.intensity = 0.3; // Lowered to not wash out shadows
+    light.specular = new BABYLON.Color3(0.05, 0.05, 0.05);
 
     // Create custom renderer to map 2D GE logic to 3D meshes
     console.log('[DEBUG] Initializing BabylonRenderer');
@@ -176,7 +176,7 @@ export class CanvasContainerComponent implements AfterViewInit, OnDestroy {
 
       (window as any)._debug_frame_count = ((window as any)._debug_frame_count || 0) + 1;
       if ((window as any)._debug_frame_count === 1) console.log('[DEBUG] First onBeforeRenderObservable fired');
-      
+
       const dt = this.engine.getDeltaTime() / 1000;
       GE.tick(dt);
       this.renderer.sync();
@@ -187,8 +187,8 @@ export class CanvasContainerComponent implements AfterViewInit, OnDestroy {
     console.log('[DEBUG] Starting runRenderLoop');
     this.engine.runRenderLoop(() => {
       if ((window as any)._debug_render_loop === undefined) {
-         (window as any)._debug_render_loop = true;
-         console.log('[DEBUG] First runRenderLoop execution');
+        (window as any)._debug_render_loop = true;
+        console.log('[DEBUG] First runRenderLoop execution');
       }
       this.scene.render();
     });

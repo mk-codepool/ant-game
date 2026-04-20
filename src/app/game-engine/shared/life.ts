@@ -22,6 +22,8 @@ export class Life {
   // Energy consumption rate per unit of distance traveled (for MOVE action)
   protected energyLossPerUnit = 0.1;
 
+  hitboxRadius = 5;
+
   constructor(props: LifeProps) {
     const { position, id } = props;
     this.setPosition(position);

@@ -19,7 +19,7 @@ export class InfoPanelComponent implements OnInit, OnDestroy {
   biomeType = BiomeType;
 
 
-  activeTab: 'config' | 'actions' | 'stats' = 'config';
+  activeTab: 'config' | 'stats' = 'config';
 
   private mouseSubscription?: Subscription;
   private intervalId: any;
@@ -44,7 +44,7 @@ export class InfoPanelComponent implements OnInit, OnDestroy {
     this.cdr.detectChanges();
   }
 
-  setTab(tab: 'config' | 'actions' | 'stats') {
+  setTab(tab: 'config' | 'stats') {
     this.activeTab = tab;
   }
 
@@ -80,37 +80,6 @@ export class InfoPanelComponent implements OnInit, OnDestroy {
     });
   }
 
-  pool() {
-    const { world } = this.engine;
-    Array.from({ length: 10 }).forEach(() => world.flora.createPlant());
-    Array.from({ length: 10 }).forEach(() => world.fauna.createCreature());
-  }
-
-  resetBiomes() {
-    const { world } = this.engine;
-    world.terrain.reseedMap();
-  }
-
-  setCanvasDownNewCreature(newThing: any) {
-    this.mouseSubscription?.unsubscribe();
-    this.mouseSubscription = this.engine.mouseController.onMouseDown.subscribe(({ x, y }) => {
-      this.engine.world.fauna.createCreature(newThing, x, y);
-    });
-  }
-
-  setCanvasDownNewPlant(newThing: any) {
-    this.mouseSubscription?.unsubscribe();
-    this.mouseSubscription = this.engine.mouseController.onMouseDown.subscribe(({ x, y }) => {
-      this.engine.world.flora.createPlant(newThing, x, y);
-    });
-  }
-
-  setCanvasDownBiome(biome: BiomeType) {
-    this.mouseSubscription?.unsubscribe();
-    this.mouseSubscription = this.engine.mouseController.onMouseDown.subscribe(({ x, y }) => {
-      this.engine.world.terrain.setPixelBiome(x, y, biome);
-    });
-  }
 
   getCreatureCount(alive: boolean): number {
     return this.engine.world.fauna.creatures?.filter((c: any) => alive ? c.lifeEnergy > 0 : c.lifeEnergy <= 0).length || 0;

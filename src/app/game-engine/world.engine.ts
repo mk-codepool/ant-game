@@ -38,9 +38,10 @@ export class WorldEngine {
   }
 
   doFrameCycle = (dt: number) => {
-    // Pass plants and terrain context to fauna
+    // Pass plants, creatures and terrain context to fauna
     this.fauna.doFrameCycle(dt, {
       plants: this.flora.plants,
+      creatures: this.fauna.creatures,
       worldBorders: this.worldBorders,
       terrain: this.terrain,
     });

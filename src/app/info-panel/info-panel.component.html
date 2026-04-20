@@ -5,7 +5,7 @@
 
   <div class="tabs">
     <button class="tab-btn" [class.active]="activeTab === 'config'" (click)="setTab('config')">Config</button>
-    <button class="tab-btn" [class.active]="activeTab === 'actions'" (click)="setTab('actions')">Actions</button>
+
     <button class="tab-btn" [class.active]="activeTab === 'stats'" (click)="setTab('stats')">Stats</button>
   </div>
 
@@ -15,7 +15,7 @@
       <h3>Camera</h3>
       <div class="form-group">
         <label>Zoom Factor ({{ getZoomFactor() | number:'1.0-0' }})</label>
-        <input type="range" class="custom-slider full-width" min="400" max="1000" step="10" [ngModel]="getZoomFactor()"
+        <input type="range" class="custom-slider full-width" min="50" max="1000" step="10" [ngModel]="getZoomFactor()"
           (ngModelChange)="setZoomFactor($event)" />
       </div>
       <div class="btn-group btn-block mt-3">
@@ -26,28 +26,7 @@
       </div>
     </div>
 
-    <!-- ACTIONS TAB -->
-    <div *ngIf="activeTab === 'actions'" class="panel-section fade-in">
-      <h3>Environment</h3>
-      <div class="btn-group btn-block">
-        <button type="button" class="btn btn-secondary" (click)="resetBiomes()">resetBiomes</button>
-        <button type="button" class="btn btn-secondary" (click)="pool()">pool</button>
-      </div>
 
-      <h3 class="mt-4">Brushes - Spawning</h3>
-      <div class="btn-group btn-block">
-        <button type="button" class="btn btn-secondary"
-          (click)="setCanvasDownNewCreature(creaturesDef.creature)">Creature</button>
-        <button type="button" class="btn btn-secondary" (click)="setCanvasDownNewPlant(plantsDef.plant)">Plant</button>
-      </div>
-
-      <h3 class="mt-4">Brushes - Terrain</h3>
-      <div class="btn-group btn-block">
-        <button type="button" class="btn btn-secondary" (click)="setCanvasDownBiome(biomeType.GRASS)">Grass</button>
-        <button type="button" class="btn btn-secondary" (click)="setCanvasDownBiome(biomeType.SAND)">Sand</button>
-        <button type="button" class="btn btn-secondary" (click)="setCanvasDownBiome(biomeType.WATER)">Water</button>
-      </div>
-    </div>
 
     <!-- STATS TAB -->
     <div *ngIf="activeTab === 'stats'" class="panel-section fade-in">
