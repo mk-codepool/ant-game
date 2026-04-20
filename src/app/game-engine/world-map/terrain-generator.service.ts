@@ -1,10 +1,10 @@
-export enum BiomeType {
+export enum TerrainType {
   GRASS = 'Grass',
   SAND = 'Sand',
   WATER = 'Water'
 }
 
-export class BiomeGenerator {
+export class TerrainGenerator {
   // A simple value noise generator
   private seed: number[] = [];
 

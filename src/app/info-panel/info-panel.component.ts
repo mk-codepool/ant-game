@@ -3,7 +3,7 @@ import { Subscription } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import GE from '../game-engine';
-import { BiomeType } from '../game-engine/world-map/biome-generator.service';
+import { TerrainType } from '../game-engine/world-map/terrain-generator.service';
 
 @Component({
   selector: 'app-info-panel',
@@ -16,7 +16,7 @@ export class InfoPanelComponent implements OnInit, OnDestroy {
   engine = GE;
   creaturesDef = GE.world.fauna.creaturesDef;
   plantsDef = GE.world.flora.plantsDef;
-  biomeType = BiomeType;
+  TerrainType = TerrainType;
 
 
   activeTab: 'config' | 'stats' = 'config';

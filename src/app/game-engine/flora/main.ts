@@ -1,6 +1,6 @@
 import { getRandomNumber } from "../random";
 import type { WorldBorders } from "../world.engine";
-import { BiomeType } from "../world-map/biome-generator.service";
+import { TerrainType } from "../world-map/terrain-generator.service";
 import type { WorldMapEngine } from "../world-map/main";
 import { BaseFlora } from "./entities/base-flora";
 import { Bush } from "./entities/bush";
@@ -81,7 +81,7 @@ export class FloraEngine {
       if (!plant.isDead()) {
         const cell = context.terrain.getPixelCell(plant.position.x, plant.position.y);
         // Flora dies instantly in Water or Sand
-        if (cell && (cell.biome === BiomeType.WATER || cell.biome === BiomeType.SAND)) {
+        if (cell && (cell.terrain === TerrainType.WATER || cell.terrain === TerrainType.SAND)) {
           plant.modifyEnergy(-plant.lifeEnergy); // Instant kill
         }
       }

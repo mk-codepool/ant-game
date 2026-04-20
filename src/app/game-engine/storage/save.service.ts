@@ -210,7 +210,7 @@ export class SaveGameService {
       world.terrain.setMapDimensions(restoredWidth, restoredHeight);
 
       // Validate that the cells are fully populated and have colors
-      if (!world.terrain.cells || world.terrain.cells.length === 0 || !world.terrain.cells[0]?.biome) {
+      if (!world.terrain.cells || world.terrain.cells.length === 0 || !world.terrain.cells[0]?.terrain) {
          console.warn('[SaveService] Loaded terrain cells are invalid. Regenerating map.');
          world.terrain.generateMap();
       }

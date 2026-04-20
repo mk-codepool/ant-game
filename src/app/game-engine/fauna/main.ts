@@ -3,7 +3,7 @@ import { BaseFauna } from "./entities/base-fauna";
 import { Ant } from "./entities/ant";
 import type { WorldBorders } from "../world.engine";
 import type { BehaviorContext } from "./behavior";
-import { BiomeType } from "../world-map/biome-generator.service";
+import { TerrainType } from "../world-map/terrain-generator.service";
 
 export class FaunaEngine {
   _creatures = new Map<number, BaseFauna>();
@@ -79,7 +79,7 @@ export class FaunaEngine {
         
         // Check biome for drowning
         const cell = context.terrain.getPixelCell(creature.position.x, creature.position.y);
-        if (cell && cell.biome === BiomeType.WATER) {
+        if (cell && cell.terrain === TerrainType.WATER) {
           // Instant drown
           creature.die('drowned');
         }

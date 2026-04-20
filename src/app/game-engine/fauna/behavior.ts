@@ -2,7 +2,7 @@ import type { BaseFauna } from "./entities/base-fauna";
 import type { BaseFlora } from "../flora/entities/base-flora";
 import type { Vector2 } from "../shared/life";
 import type { WorldMapEngine } from "../world-map/main";
-import { BiomeType } from "../world-map/biome-generator.service";
+import { TerrainType } from "../world-map/terrain-generator.service";
 
 /**
  * Enum for behavior names
@@ -182,7 +182,7 @@ export class WanderBehavior implements Behavior {
         
         const cell = terrain.getPixelCell(testX, testY);
         // Avoid water
-        if (cell && cell.biome !== BiomeType.WATER) {
+        if (cell && cell.terrain !== TerrainType.WATER) {
           valid = true;
           newTarget = { x: testX, y: testY };
         }

@@ -1,26 +1,27 @@
 import { Subject } from 'rxjs';
 import * as EasyStar from 'easystarjs';
-import { BiomeGenerator, BiomeType } from './biome-generator.service';
+import { TerrainGenerator, TerrainType } from './terrain-generator.service';
 import { TileSystem, type TileCoord, type WorldPoint } from './tile-system';
+import biomesEngine from '../biomes/main';
 
 export interface WorldCell {
   cx: number;
   cy: number;
-  biome: BiomeType;
+  terrain: TerrainType;
   z: number;
   color?: string;
 }
 
-export const BiomeColors: Record<BiomeType, [number, number, number]> = {
-  [BiomeType.WATER]: [30, 144, 255], // DodgerBlue
-  [BiomeType.SAND]: [238, 221, 130], // LightGoldenrod
-  [BiomeType.GRASS]: [60, 179, 113], // MediumSeaGreen
+export const TerrainColors: Record<TerrainType, [number, number, number]> = {
+  [TerrainType.WATER]: [30, 144, 255], // DodgerBlue
+  [TerrainType.SAND]: [238, 221, 130], // LightGoldenrod
+  [TerrainType.GRASS]: [60, 179, 113], // MediumSeaGreen
 };
 
-const BiomePathCodes: Record<BiomeType, number> = {
-  [BiomeType.GRASS]: 1,
-  [BiomeType.SAND]: 2,
-  [BiomeType.WATER]: 3,
+const TerrainPathCodes: Record<TerrainType, number> = {
+  [TerrainType.GRASS]: 1,
+  [TerrainType.SAND]: 2,
+  [TerrainType.WATER]: 3,
 };
 
 export interface WorldMapConfig {
@@ -33,10 +34,10 @@ export interface WorldMapConfig {
 }
 
 export interface TilePathOptions {
-  walkableBiomes?: BiomeType[];
+  walkableBiomes?: TerrainType[];
   allowDiagonals?: boolean;
   iterationsPerCalculation?: number;
-  tileCosts?: Partial<Record<BiomeType, number>>;
+  tileCosts?: Partial<Record<TerrainType, number>>;
 }
 
 export interface DirtyRect {
@@ -48,7 +49,7 @@ export interface DirtyRect {
 
 export class WorldMapEngine {
   cells: WorldCell[] = [];
-  generator = new BiomeGenerator();
+  generator = new TerrainGenerator();
   onMapChanged = new Subject<DirtyRect | null>();
 
   width = 0;
@@ -99,16 +100,16 @@ export class WorldMapEngine {
     this.tiles.forEachTileInWorldRect(x1, y1, x2, y2, callback);
   }
 
-  setTileBiome = (tx: number, ty: number, biome: BiomeType, emitChange = true): boolean => {
+  setTileBiome = (tx: number, ty: number, terrain: TerrainType, emitChange = true): boolean => {
     if (!this.tiles.isInside(tx, ty)) return false;
 
     const current = this.getCell(tx, ty);
     if (current) {
-      const color = BiomeColors[biome];
-      current.biome = biome;
+      const color = TerrainColors[terrain];
+      current.terrain = terrain;
       current.color = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
     } else {
-      this.setCell(tx, ty, { cx: tx, cy: ty, biome, z: 1 });
+      this.setCell(tx, ty, { cx: tx, cy: ty, terrain, z: 1 });
     }
 
     if (emitChange) {
@@ -117,7 +118,7 @@ export class WorldMapEngine {
     return true;
   }
 
-  paintBiomeCircle = (centerX: number, centerY: number, radius: number, biome: BiomeType): number => {
+  paintBiomeCircle = (centerX: number, centerY: number, radius: number, terrain: TerrainType): number => {
     if (radius <= 0) return 0;
 
     const radiusSquared = radius * radius;
@@ -136,7 +137,7 @@ export class WorldMapEngine {
         const dy = center.y - centerY;
 
         if ((dx * dx) + (dy * dy) <= radiusSquared) {
-          const changed = this.setTileBiome(tx, ty, biome, false);
+          const changed = this.setTileBiome(tx, ty, terrain, false);
           if (changed) {
             changedTiles++;
             if (tx < minTx) minTx = tx;
@@ -213,17 +214,15 @@ export class WorldMapEngine {
       for (let y = 0; y < rows; y++) {
         // Range 0 to ~1
         const noiseVal = this.generator.fractalNoise(x * scale, y * scale);
+        
+        const cellData = biomesEngine.activeBiome.generateCell(x, y, noiseVal);
 
-        // Thresholding – bias toward grass, less water
-        let biome = BiomeType.WATER;
-        if (noiseVal > 0.25 && noiseVal <= 0.35) {
-          biome = BiomeType.SAND;
-        } else if (noiseVal > 0.35) {
-          biome = BiomeType.GRASS;
-        }
-
-        // Z scale mapping (0 to 10 for example)
-        this.setCell(x, y, { cx: x, cy: y, biome, z: Math.floor(noiseVal * 10) });
+        this.setCell(x, y, { 
+          cx: x, 
+          cy: y, 
+          terrain: cellData.terrain, 
+          z: cellData.z 
+        });
       }
     }
 
@@ -239,9 +238,9 @@ export class WorldMapEngine {
     return cy * this.tiles.cols + cx;
   }
 
-  setPixelBiome(px: number, py: number, biome: BiomeType) {
+  setPixelBiome(px: number, py: number, terrain: TerrainType) {
     const { tx, ty } = this.getTileAtWorld(px, py);
-    this.setTileBiome(tx, ty, biome, true);
+    this.setTileBiome(tx, ty, terrain, true);
   }
 
   getPixelCell(px: number, py: number): WorldCell | undefined {
@@ -256,7 +255,7 @@ export class WorldMapEngine {
 
   setCell(cx: number, cy: number, cell: WorldCell) {
     if (!this.tiles.isInside(cx, cy)) return;
-    const color = BiomeColors[cell.biome];
+    const color = TerrainColors[cell.terrain];
     cell.color = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
     this.cells[this.getIndex(cx, cy)] = cell;
   }
@@ -265,8 +264,8 @@ export class WorldMapEngine {
     const pathfinder = new EasyStar.js();
     pathfinder.setGrid(this.buildPathfindingGrid());
 
-    const walkableBiomes = options.walkableBiomes || [BiomeType.GRASS, BiomeType.SAND];
-    const acceptableCodes = walkableBiomes.map((biome) => BiomePathCodes[biome]);
+    const walkableBiomes = options.walkableBiomes || [TerrainType.GRASS, TerrainType.SAND];
+    const acceptableCodes = walkableBiomes.map((biome) => TerrainPathCodes[biome]);
     pathfinder.setAcceptableTiles(acceptableCodes);
 
     if (options.allowDiagonals !== false) {
@@ -280,10 +279,10 @@ export class WorldMapEngine {
     }
 
     const tileCosts = options.tileCosts || {};
-    const allBiomes = Object.values(BiomeType);
+    const allBiomes = Object.values(TerrainType);
     allBiomes.forEach((biome) => {
       const cost = tileCosts[biome] || 1;
-      pathfinder.setTileCost(BiomePathCodes[biome], cost);
+      pathfinder.setTileCost(TerrainPathCodes[biome], cost);
     });
 
     return pathfinder;
@@ -297,8 +296,8 @@ export class WorldMapEngine {
     for (let ty = 0; ty < rows; ty++) {
       const row: number[] = [];
       for (let tx = 0; tx < cols; tx++) {
-        const biome = this.getCell(tx, ty)?.biome || BiomeType.WATER;
-        row.push(BiomePathCodes[biome]);
+        const biome = this.getCell(tx, ty)?.terrain || TerrainType.WATER;
+        row.push(TerrainPathCodes[biome]);
       }
       grid.push(row);
     }

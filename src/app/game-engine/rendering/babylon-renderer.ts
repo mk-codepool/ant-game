@@ -2,7 +2,7 @@ import * as BABYLON from '@babylonjs/core';
 import "@babylonjs/core/Meshes/instancedMesh"; // Side-effects required for instancing
 import * as GUI from '@babylonjs/gui';
 import GE from '../../game-engine';
-import { BiomeType } from '../world-map/biome-generator.service';
+import { TerrainType } from '../world-map/terrain-generator.service';
 import type { DirtyRect } from '../world-map/main';
 
 // ── Rich biome color palettes ──────────────────────────────────────────────
@@ -19,17 +19,17 @@ interface BiomePalette {
 }
 
 const BIOME_PALETTES: Record<string, BiomePalette> = {
-  [BiomeType.WATER]: {
+  [TerrainType.WATER]: {
     low:  [8,   56, 120],    // deep ocean blue
     high: [45, 140, 210],    // shallow turquoise
     edge: [80, 180, 220],    // coastal foam tint
   },
-  [BiomeType.SAND]: {
+  [TerrainType.SAND]: {
     low:  [180, 155,  90],   // dark wet sand
     high: [240, 220, 160],   // bright dry sand
     edge: [210, 195, 130],   // damp transition
   },
-  [BiomeType.GRASS]: {
+  [TerrainType.GRASS]: {
     low:  [30, 100,  50],    // dark forest green
     high: [90, 190, 100],    // bright meadow green
     edge: [70, 160,  85],    // mid transition green
@@ -43,9 +43,9 @@ const CELL_DETAIL = 8;
 const BLEND_RADIUS = 3; // pixels of blend zone at each cell edge
 
 const BIOME_PRIORITY: Record<string, number> = {
-  [BiomeType.WATER]: 1,  // lowest — sits below everything
-  [BiomeType.SAND]:  2,  // sand drifts over water
-  [BiomeType.GRASS]: 3,  // vegetation overgrows sand & shore
+  [TerrainType.WATER]: 1,  // lowest — sits below everything
+  [TerrainType.SAND]:  2,  // sand drifts over water
+  [TerrainType.GRASS]: 3,  // vegetation overgrows sand & shore
 };
 
 // ── Tiny deterministic spatial hash for per-pixel variation ─────────────
@@ -70,9 +70,9 @@ function smoothNoise(x: number, y: number): number {
  * Extracted so both the base cell and blended neighbors use identical rendering.
  */
 function computeBiomePixelColor(
-  biome: BiomeType, z: number, px: number, py: number
+  terrain: TerrainType, z: number, px: number, py: number
 ): [number, number, number] {
-  const palette = BIOME_PALETTES[biome];
+  const palette = BIOME_PALETTES[terrain];
   if (!palette) return [0, 0, 0];
 
   const elevT = Math.min(1, Math.max(0, (z || 0) / 10));
@@ -92,19 +92,19 @@ function computeBiomePixelColor(
   b += dither * 0.6;
 
   // ── Water wave pattern ──
-  if (biome === BiomeType.WATER) {
+  if (terrain === TerrainType.WATER) {
     const wave = Math.sin((px * 0.15 + py * 0.2) * 0.8) * 1.5;
     r += wave; g += wave * 1.2; b += wave * 0.5;
   }
 
   // ── Grass blade specks ──
-  if (biome === BiomeType.GRASS) {
+  if (terrain === TerrainType.GRASS) {
     // Occasional very subtle grain, but much softer
     if (pNoise > 0.95) { r *= 0.95; g *= 0.97; b *= 0.92; }
   }
 
   // ── Sand grain specks ──
-  if (biome === BiomeType.SAND) {
+  if (terrain === TerrainType.SAND) {
     // Occasional tiny pebbles, softer contrast
     if (pNoise > 0.95) { r = Math.min(255, r + 8); g = Math.min(255, g + 5); }
   }
@@ -116,7 +116,7 @@ function computeBiomePixelColor(
  * Compute the normal map RGB color for a given pixel based on its biome
  */
 function computeBiomePixelNormal(
-  biome: BiomeType, z: number, px: number, py: number
+  terrain: TerrainType, z: number, px: number, py: number
 ): [number, number, number] {
   const sNoise = smoothNoise(px, py);
   const pNoise = pixelNoise(px, py);
@@ -124,14 +124,14 @@ function computeBiomePixelNormal(
   // Base tangent space normal pointing straight up: (128, 128, 255)
   let nx = 128, ny = 128, nz = 255;
   
-  if (biome === BiomeType.WATER) {
+  if (terrain === TerrainType.WATER) {
     // Very gentle and broad ocean waves
     const waveX = Math.sin(px * 0.05 + py * 0.08);
     const waveY = Math.cos(px * 0.08 - py * 0.05);
     nx = 128 + waveX * 12;
     ny = 128 + waveY * 12;
     nz = 250;
-  } else if (biome === BiomeType.GRASS) {
+  } else if (terrain === TerrainType.GRASS) {
     // Soft, rolling grassy mounds
     nx = 128 + sNoise * 25;
     ny = 128 + smoothNoise(px + 30, py + 30) * 25;
@@ -139,7 +139,7 @@ function computeBiomePixelNormal(
     nx += (pNoise - 0.5) * 10;
     ny += (pixelNoise(px + 10, py + 10) - 0.5) * 10;
     nz = 240;
-  } else if (biome === BiomeType.SAND) {
+  } else if (terrain === TerrainType.SAND) {
     // Long, beautiful sprawling dunes
     const dune = Math.sin(px * 0.05 + py * 0.05 + sNoise * 0.5) * 15;
     nx = 128 + dune + sNoise * 15;
@@ -165,6 +165,9 @@ export class BabylonRenderer {
   private entityBases: Map<string, BABYLON.Mesh> = new Map();
   // Active instances per entity type
   private entityInstances: Map<string, BABYLON.InstancedMesh[]> = new Map();
+
+  private entityShadows: Map<string, BABYLON.InstancedMesh[]> = new Map();
+  private blobShadowBase!: BABYLON.Mesh;
 
   // Terrain
   private terrainGround!: BABYLON.Mesh;
@@ -270,9 +273,9 @@ export class BabylonRenderer {
     switch (this.activeBrush) {
       case 'creature': GE.world.fauna.createCreature(GE.world.fauna.creaturesDef.ant, x, y); break;
       case 'plant': GE.world.flora.createPlant(GE.world.flora.plantsDef.bush, x, y); break;
-      case 'grass': GE.world.terrain.setPixelBiome(x, y, BiomeType.GRASS); break;
-      case 'sand': GE.world.terrain.setPixelBiome(x, y, BiomeType.SAND); break;
-      case 'water': GE.world.terrain.setPixelBiome(x, y, BiomeType.WATER); break;
+      case 'grass': GE.world.terrain.setPixelBiome(x, y, TerrainType.GRASS); break;
+      case 'sand': GE.world.terrain.setPixelBiome(x, y, TerrainType.SAND); break;
+      case 'water': GE.world.terrain.setPixelBiome(x, y, TerrainType.WATER); break;
     }
   }
 
@@ -798,6 +801,35 @@ export class BabylonRenderer {
   }
 
   private initEntities() {
+    // --- Blob Shadow Base ---
+    const shadowTexSize = 128;
+    const shadowTexture = new BABYLON.DynamicTexture("shadowTex", shadowTexSize, this.scene, false);
+    const shadowCtx = shadowTexture.getContext();
+    const cx = shadowTexSize / 2;
+    const cy = shadowTexSize / 2;
+    
+    // Radial gradient from 85% opacity black to 0
+    const radialGrad = shadowCtx.createRadialGradient(cx, cy, 0, cx, cy, cx);
+    radialGrad.addColorStop(0, "rgba(0, 0, 0, 0.85)");
+    radialGrad.addColorStop(0.5, "rgba(0, 0, 0, 0.4)");
+    radialGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
+
+    shadowCtx.fillStyle = radialGrad;
+    shadowCtx.fillRect(0, 0, shadowTexSize, shadowTexSize);
+    shadowTexture.update();
+
+    const shadowMaterial = new BABYLON.StandardMaterial("blobShadowMat", this.scene);
+    shadowMaterial.diffuseTexture = shadowTexture;
+    shadowMaterial.diffuseTexture.hasAlpha = true;
+    shadowMaterial.useAlphaFromDiffuseTexture = true;
+    shadowMaterial.disableLighting = true; // purely unlit
+    shadowMaterial.emissiveColor = new BABYLON.Color3(0, 0, 0);
+
+    this.blobShadowBase = BABYLON.MeshBuilder.CreatePlane("blobShadowBase", { size: 4 }, this.scene);
+    this.blobShadowBase.rotation.x = Math.PI / 2; // Lie flat on ground
+    this.blobShadowBase.material = shadowMaterial;
+    this.blobShadowBase.isVisible = false;
+
     // --- Flora base: Low-poly stylized bush with branches ---
     const floraLeafMat = new BABYLON.PBRMaterial("floraLeafMat", this.scene);
     floraLeafMat.albedoColor = new BABYLON.Color3(0.05, 0.15, 0.02);
@@ -959,8 +991,8 @@ export class BabylonRenderer {
 
         if (cell) {
           // Base color for this cell's biome
-          [r, g, b] = computeBiomePixelColor(cell.biome, cell.z, px, py);
-          [nr, ng, nb] = computeBiomePixelNormal(cell.biome, cell.z, px, py);
+          [r, g, b] = computeBiomePixelColor(cell.terrain, cell.z, px, py);
+          [nr, ng, nb] = computeBiomePixelNormal(cell.terrain, cell.z, px, py);
 
           // ── Biome border blending ──────────────────────────────────────
           const localX = px % CELL_DETAIL;
@@ -970,7 +1002,7 @@ export class BabylonRenderer {
             localY < BLEND_RADIUS || localY >= CELL_DETAIL - BLEND_RADIUS;
 
           if (nearEdge) {
-            const selfPriority = BIOME_PRIORITY[cell.biome] || 0;
+            const selfPriority = BIOME_PRIORITY[cell.terrain] || 0;
             let totalWeight = 0;
             let blendR = 0, blendG = 0, blendB = 0;
             let blendNR = 0, blendNG = 0, blendNB = 0;
@@ -991,8 +1023,8 @@ export class BabylonRenderer {
               if (nx_n < 0 || nx_n >= cols || ny_n < 0 || ny_n >= rows) return;
 
               const neighbor = cells[ny_n * cols + nx_n];
-              if (!neighbor || neighbor.biome === cell!.biome) return;
-              if ((BIOME_PRIORITY[neighbor.biome] || 0) <= selfPriority) return;
+              if (!neighbor || neighbor.terrain === cell!.terrain) return;
+              if ((BIOME_PRIORITY[neighbor.terrain] || 0) <= selfPriority) return;
 
               // Noise-perturbed weight → organic jagged border
               const noiseMod = 0.4 + pixelNoise(px + dx * 997, py + dy * 991) * 0.9;
@@ -1001,14 +1033,14 @@ export class BabylonRenderer {
                 * diagScale;
 
               const [nc_r, nc_g, nc_b] = computeBiomePixelColor(
-                neighbor.biome, neighbor.z, px, py
+                neighbor.terrain, neighbor.z, px, py
               );
               blendR += nc_r * weight;
               blendG += nc_g * weight;
               blendB += nc_b * weight;
               
               const [nn_r, nn_g, nn_b] = computeBiomePixelNormal(
-                neighbor.biome, neighbor.z, px, py
+                neighbor.terrain, neighbor.z, px, py
               );
               blendNR += nn_r * weight;
               blendNG += nn_g * weight;
@@ -1178,11 +1210,17 @@ export class BabylonRenderer {
          instances = [];
          this.entityInstances.set(type, instances);
        }
+       let shadowInstances = this.entityShadows.get(type);
+       if (!shadowInstances) {
+         shadowInstances = [];
+         this.entityShadows.set(type, shadowInstances);
+       }
 
        while (instances.length < typePlants.length) {
          const inst = base.createInstance(type + "_" + instances.length);
          this.shadowGenerator.addShadowCaster(inst, false);
          instances.push(inst);
+         shadowInstances.push(this.blobShadowBase.createInstance(type + "_shd_" + shadowInstances.length));
        }
        while (instances.length > typePlants.length) {
          const inst = instances.pop();
@@ -1190,23 +1228,33 @@ export class BabylonRenderer {
            this.shadowGenerator.removeShadowCaster(inst);
            inst.dispose();
          }
+         const shd = shadowInstances.pop();
+         if (shd) shd.dispose();
        }
 
        typePlants.forEach((plant: any, index: number) => {
          const inst = instances![index];
+         const shdInst = shadowInstances![index];
          inst.position.x = plant.position.x;
          inst.position.z = plant.position.y;
          
          if (plant.lifeEnergy > 0) {
            inst.isVisible = true;
+           shdInst.isVisible = true;
            const baseEnergy = typeof plant.getInitialEnergy === "function" ? plant.getInitialEnergy() : 200;
            let scale = Math.max(0.3, Math.min(3.0, baseEnergy / 80));
            if (type === "Bush") scale *= 1.4;
            inst.scaling.setAll(scale);
            inst.position.y = 0;
            inst.rotation.y = plant.id * 1.618;
+           
+           shdInst.position.x = inst.position.x;
+           shdInst.position.z = inst.position.z;
+           shdInst.position.y = 0.05;
+           shdInst.scaling.setAll(scale * 0.7); // blob shadow relatively smaller
          } else {
            inst.isVisible = false;
+           shdInst.isVisible = false;
          }
        });
     }
@@ -1233,12 +1281,18 @@ export class BabylonRenderer {
          instances = [];
          this.entityInstances.set(type, instances);
        }
+       let shadowInstances = this.entityShadows.get(type);
+       if (!shadowInstances) {
+         shadowInstances = [];
+         this.entityShadows.set(type, shadowInstances);
+       }
 
        while (instances.length < typeCreatures.length) {
          const inst = base.createInstance(type + "_inst_" + instances.length);
          inst.instancedBuffers["color"] = new BABYLON.Color4(1, 1, 1, 1);
          this.shadowGenerator.addShadowCaster(inst, false);
          instances.push(inst);
+         shadowInstances.push(this.blobShadowBase.createInstance(type + "_shd_" + shadowInstances.length));
        }
        while (instances.length > typeCreatures.length) {
          const inst = instances.pop();
@@ -1246,10 +1300,13 @@ export class BabylonRenderer {
            this.shadowGenerator.removeShadowCaster(inst);
            inst.dispose();
          }
+         const shd = shadowInstances.pop();
+         if (shd) shd.dispose();
        }
 
        typeCreatures.forEach((creature: any, index: number) => {
          const inst = instances![index];
+         const shdInst = shadowInstances![index];
          inst.position.x = creature.position.x;
          inst.position.z = creature.position.y;
          
@@ -1259,17 +1316,24 @@ export class BabylonRenderer {
          if (creature.lifeEnergy <= 0) {
            if (!creature.deathReason || creature.timeSinceDeath > 3) {
              inst.isVisible = false;
+             shdInst.isVisible = false;
            } else {
              inst.isVisible = true;
+             shdInst.isVisible = true;
+             shdInst.position.x = inst.position.x;
+             shdInst.position.z = inst.position.z;
+             shdInst.position.y = 0.05;
 
              if (creature.deathReason === 'drowned') {
                 inst.position.y = 3 - (creature.timeSinceDeath / 3) * 8;
                 const scale = Math.max(0.01, 1 - (creature.timeSinceDeath / 3));
                 inst.scaling.setAll(scale);
+                shdInst.scaling.setAll(scale * 0.6); // Scale down blob with drowning
              } else {
                 const tipAngle = Math.min(Math.PI / 2, creature.timeSinceDeath * 2);
                 inst.rotation.x = tipAngle;
                 inst.position.y = 3 - Math.sin(tipAngle) * 2;
+                shdInst.scaling.setAll(0.6); // keep blob scaled down
              }
              
              if (inst.instancedBuffers["color"]) {
@@ -1279,6 +1343,11 @@ export class BabylonRenderer {
            }
          } else {
            inst.isVisible = true;
+           shdInst.isVisible = true;
+           shdInst.position.x = inst.position.x;
+           shdInst.position.z = inst.position.z;
+           shdInst.position.y = 0.05;
+           shdInst.scaling.setAll(0.6); // Contact shadow matches bug body
 
            const dx = creature.target.x - creature.position.x;
            const MathDz = creature.target.y - creature.position.y;
