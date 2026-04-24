@@ -90,8 +90,14 @@ export class FaunaEngine {
     }
   }
 
-  doSmallCycle = () => {
+  doSmallCycle = (context?: BehaviorContext) => {
     this.creatures.forEach(thing => {
+      // Execute the heavy behavioral AI logic in the small cycle!
+      if (context && !thing.isDead()) {
+         // Passing context from doSmallCycle if available 
+         thing.think(context);
+      }
+      
       thing.ageUp();
       // Keep corpse around for 3 seconds for animation
       if (thing.lifeEnergy <= 0 && (!thing.deathReason || thing.timeSinceDeath > 3)) {

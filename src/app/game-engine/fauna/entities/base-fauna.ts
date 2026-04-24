@@ -18,6 +18,9 @@ export abstract class BaseFauna extends Life {
   vision: Vision;
   currentGoal!: Goal;
   currentBehavior: Behavior | null = null;
+  // Cache of local plants to prevent checking 8,000+ plants per frame for collisions
+  localPlants: BaseFlora[] = [];
+  private dtAccumulator = 0;
 
   override energyLossPerUnit = 0.1;
   private lastPosition: Vector2;
@@ -76,8 +79,8 @@ export abstract class BaseFauna extends Life {
     let nextX = this.position.x + moveX;
     let nextY = this.position.y + moveY;
     
-    // Soft sliding collision with plants
-    for (const plant of context.plants) {
+    // Soft sliding collision ONLY with nearby cached plants (saves 8,000 array loops per frame)
+    for (const plant of this.localPlants) {
       if (plant.lifeEnergy <= 0) continue;
       const pdx = nextX - plant.position.x;
       const pdy = nextY - plant.position.y;
@@ -118,10 +121,21 @@ export abstract class BaseFauna extends Life {
     this.consumeEnergy(ActionType.MOVE, distanceTraveled);
   }
 
-  update = (dt: number, context: BehaviorContext): void => {
-    if (this.isDead()) {
-      this.timeSinceDeath += dt;
-      return;
+  // Heavy AI logic shifted to the small cycle to relieve the main frame loop
+  think = (context: BehaviorContext): void => {
+    if (this.isDead()) return;
+
+    // Cache nearby plants for collision (radius e.g., 30)
+    // Doing this less frequently saves millions of collision array loops every frame
+    this.localPlants = [];
+    for (const plant of context.plants) {
+      if (plant.lifeEnergy <= 0) continue;
+      // Using quick manhattan distance check first for extreme speed
+      const dx = Math.abs(plant.position.x - this.position.x);
+      const dy = Math.abs(plant.position.y - this.position.y);
+      if (dx < 30 && dy < 30) {
+        this.localPlants.push(plant);
+      }
     }
 
     const dx = this.target.x - this.position.x;
@@ -137,9 +151,22 @@ export abstract class BaseFauna extends Life {
     }
 
     if (this.currentBehavior) {
-      this.currentBehavior.execute(this, context, dt);
+      this.currentBehavior.execute(this, context, this.dtAccumulator);
+    }
+    
+    // Reset accumulated delta time since we just evaluated
+    this.dtAccumulator = 0;
+  }
+
+  update = (dt: number, context: BehaviorContext): void => {
+    if (this.isDead()) {
+      this.timeSinceDeath += dt;
+      return;
     }
 
+    this.dtAccumulator += dt;
+
+    // ONLY execute simple cached movement in the frame loop!
     this.move(dt, context);
   }
 

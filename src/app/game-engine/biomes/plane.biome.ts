@@ -1,4 +1,5 @@
 import { TerrainType } from "../world-map/terrain-generator.service";
+import { TileSystem } from "../world-map/tile-system";
 import { BaseBiome, type BiomeCycleContext } from "./base-biome";
 
 export class PlaneBiome extends BaseBiome {
@@ -16,56 +17,104 @@ export class PlaneBiome extends BaseBiome {
 
   doFrameCycle(dt: number, context: BiomeCycleContext): void {}
 
-  private smallCycleCount = 0;
+  private scanTimerTicks = 0;
+  private scanState: 'idle' | 'build_heatmap' | 'process_tiles' = 'idle';
+  private currentTileIndex = 0;
+  private densityTiles: TileSystem | null = null;
+  private heatmap: Int16Array | null = null;
+
+  // Process a chunk of tiles each cycle to prevent lag spikes
+  private readonly TILES_PER_CYCLE = 200;
 
   doSmallCycle(context: BiomeCycleContext): void {
-    this.smallCycleCount++;
-    
-    // Attempt a spawn every 10 small cycles (~10 seconds)
-    if (this.smallCycleCount >= 10) {
-      this.smallCycleCount = 0;
-      
+    if (this.scanState === 'idle') {
+      this.scanTimerTicks++;
+      // Wait for 10 small cycles before initiating a new full-map scan
+      if (this.scanTimerTicks >= 10) {
+        this.scanTimerTicks = 0;
+        this.scanState = 'build_heatmap';
+      }
+    }
+
+    if (this.scanState === 'build_heatmap') {
       const { flora, terrain } = context;
-      let attempts = 0;
-      let spawned = false;
       
-      // 80% chance to cluster around an existing plant
-      let targetCenter: { x: number, y: number } | null = null;
-      if (flora.plants.length > 0 && Math.random() < 0.8) {
-        const randomPlant = flora.plants[Math.floor(Math.random() * flora.plants.length)];
-        targetCenter = { x: randomPlant.position.x, y: randomPlant.position.y };
+      if (!this.densityTiles) {
+        this.densityTiles = new TileSystem(100, terrain.width, terrain.height);
+      } else if (this.densityTiles.width !== terrain.width || this.densityTiles.height !== terrain.height) {
+        this.densityTiles.setMapSize(terrain.width, terrain.height);
       }
 
-      while (attempts < 15 && !spawned) {
-        let coords: { x: number, y: number };
-        
-        if (targetCenter) {
-          const angle = Math.random() * Math.PI * 2;
-          const distance = 15 + Math.random() * 30;
-          coords = {
-            x: targetCenter.x + Math.cos(angle) * distance,
-            y: targetCenter.y + Math.sin(angle) * distance
-          };
-          coords = flora.getExactCoordinates(coords.x, coords.y);
-          if (coords.x === 0 && coords.y === 0) {
-            coords = flora.getRandomCoordinates();
-          }
-        } else {
-          coords = flora.getRandomCoordinates();
+      this.heatmap = new Int16Array(this.densityTiles.cols * this.densityTiles.rows);
+      for (const plant of flora.plants) {
+        const coord = this.densityTiles.worldToTile(plant.position.x, plant.position.y);
+        if (this.densityTiles.isInside(coord.tx, coord.ty)) {
+          this.heatmap[coord.ty * this.densityTiles.cols + coord.tx]++;
         }
+      }
 
-        const cell = terrain.getPixelCell(coords.x, coords.y);
+      this.currentTileIndex = 0;
+      this.scanState = 'process_tiles';
+    }
+
+    if (this.scanState === 'process_tiles') {
+      if (!this.densityTiles || !this.heatmap) {
+        this.scanState = 'idle';
+        return;
+      }
+
+      const { flora, terrain } = context;
+      const totalTiles = this.densityTiles.cols * this.densityTiles.rows;
+      let processed = 0;
+
+      while (processed < this.TILES_PER_CYCLE && this.currentTileIndex < totalTiles) {
+        const tx = this.currentTileIndex % this.densityTiles.cols;
+        const ty = Math.floor(this.currentTileIndex / this.densityTiles.cols);
         
-        if (cell && cell.terrain === TerrainType.GRASS) {
-          flora.createPlant(undefined, coords.x, coords.y);
-          spawned = true;
+        const count = this.heatmap[this.currentTileIndex];
+        let chance = 0;
+
+        if (count === 0) chance = 0.005;         // Extra small chance for empty space
+        else if (count <= 3) chance = 0.05;      // Small chance for 1-3
+        else if (count <= 20) chance = 0.4;      // Normal chance for 3-20
+        else if (count <= 40) chance = 0.8;      // Big chance for 20-40
+        else chance = 1.0;                       // 100% chance for 40+ bushes
+        
+        if (Math.random() < chance) {
+          let attempts = 0;
+          let spawned = false;
+          
+          const tileStart = this.densityTiles.tileToWorld(tx, ty);
+
+          while (attempts < 10 && !spawned) {
+            const px = tileStart.x + Math.random() * this.densityTiles.cellSize;
+            const py = tileStart.y + Math.random() * this.densityTiles.cellSize;
+            
+            const coords = flora.getExactCoordinates(px, py);
+            if (coords.x !== 0 || coords.y !== 0) {
+              const cell = terrain.getPixelCell(coords.x, coords.y);
+              if (cell && cell.terrain === TerrainType.GRASS) {
+                flora.createPlant(undefined, coords.x, coords.y);
+                spawned = true;
+              }
+            }
+            attempts++;
+          }
         }
-        attempts++;
+        
+        this.currentTileIndex++;
+        processed++;
+      }
+
+      // If we've processed all tiles, reset back to idle
+      if (this.currentTileIndex >= totalTiles) {
+        this.heatmap = null;
+        this.scanState = 'idle';
       }
     }
   }
 
   doBigCycle(context: BiomeCycleContext): void {
-    // Currently empty as spawning moved to doSmallCycle
+    // Left empty: biome events moved to doSmallCycle
   }
 }

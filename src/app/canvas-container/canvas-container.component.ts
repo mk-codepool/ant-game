@@ -41,6 +41,17 @@ export class CanvasContainerComponent implements AfterViewInit, OnDestroy {
   private scene!: BABYLON.Scene;
   private renderer!: BabylonRenderer;
 
+  private keysState: { [key: string]: boolean } = {
+    w: false,
+    a: false,
+    s: false,
+    d: false
+  };
+  private cameraVelocity = BABYLON.Vector3.Zero();
+  private readonly maxCameraSpeed = 800; // units per second
+  private readonly cameraAcceleration = 4000; // units per second squared
+  private readonly cameraDeceleration = 4000;
+
   constructor(private ngZone: NgZone) { }
 
   ngAfterViewInit(): void {
@@ -48,11 +59,14 @@ export class CanvasContainerComponent implements AfterViewInit, OnDestroy {
     const canvas = this.canvasRef.nativeElement;
     const container = this.containerRef.nativeElement;
 
+    window.addEventListener('keydown', this.onKeyDown);
+    window.addEventListener('keyup', this.onKeyUp);
+
     setTimeout(async () => {
       console.log('[DEBUG] ngAfterViewInit setTimeout triggered');
       GE.setConfig({
-        borderX: 1000,
-        borderY: 1000,
+        borderX: 5000,
+        borderY: 5000,
       });
 
       // Try to restore from autosave before starting
@@ -69,6 +83,8 @@ export class CanvasContainerComponent implements AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     window.removeEventListener("resize", this.onResize);
+    window.removeEventListener('keydown', this.onKeyDown);
+    window.removeEventListener('keyup', this.onKeyUp);
     if (this.renderer) {
       this.renderer.dispose();
     }
@@ -77,6 +93,20 @@ export class CanvasContainerComponent implements AfterViewInit, OnDestroy {
     }
     if (this.engine) {
       this.engine.dispose();
+    }
+  }
+
+  private onKeyDown = (e: KeyboardEvent) => {
+    const key = e.key.toLowerCase();
+    if (this.keysState.hasOwnProperty(key)) {
+      this.keysState[key] = true;
+    }
+  }
+
+  private onKeyUp = (e: KeyboardEvent) => {
+    const key = e.key.toLowerCase();
+    if (this.keysState.hasOwnProperty(key)) {
+      this.keysState[key] = false;
     }
   }
 
@@ -174,10 +204,54 @@ export class CanvasContainerComponent implements AfterViewInit, OnDestroy {
       camera.orthoBottom = -orthoZoom;
       camera.orthoTop = orthoZoom;
 
+      const dt = this.engine.getDeltaTime() / 1000;
+
+      // --- WASD Camera Movement ---
+      let inputX = 0;
+      let inputZ = 0;
+      if (this.keysState['w']) inputZ += 1;
+      if (this.keysState['s']) inputZ -= 1;
+      if (this.keysState['a']) inputX -= 1;
+      if (this.keysState['d']) inputX += 1;
+
+      const inputVector = new BABYLON.Vector3(inputX, 0, inputZ);
+      if (inputVector.length() > 0) {
+        inputVector.normalize();
+      }
+
+      const zoomRatio = camera.radius / 600;
+      const scaledMaxSpeed = this.maxCameraSpeed * zoomRatio;
+      const targetVelocity = inputVector.scale(scaledMaxSpeed);
+
+      const velocityDiff = targetVelocity.subtract(this.cameraVelocity);
+      const diffLength = velocityDiff.length();
+      const accel = inputVector.length() > 0 ? this.cameraAcceleration : this.cameraDeceleration;
+      const maxDelta = accel * zoomRatio * dt;
+
+      if (diffLength <= maxDelta || diffLength === 0) {
+        this.cameraVelocity.copyFrom(targetVelocity);
+      } else {
+        this.cameraVelocity.addInPlace(velocityDiff.scale(maxDelta / diffLength));
+      }
+
+      if (this.cameraVelocity.lengthSquared() > 0.001) {
+        const forwardDir = new BABYLON.Vector3(-Math.cos(camera.alpha), 0, -Math.sin(camera.alpha)).normalize();
+        const rightDir = new BABYLON.Vector3(-Math.sin(camera.alpha), 0, Math.cos(camera.alpha)).normalize();
+
+        const moveX = rightDir.scale(this.cameraVelocity.x * dt);
+        const moveZ = forwardDir.scale(this.cameraVelocity.z * dt);
+
+        camera.target.addInPlace(moveX).addInPlace(moveZ);
+
+        const { mapWidth, mapHeight } = this.getCurrentMapDimensions();
+        camera.target.x = Math.max(0, Math.min(mapWidth, camera.target.x));
+        camera.target.z = Math.max(0, Math.min(mapHeight, camera.target.z));
+      }
+      // ----------------------------
+
       (window as any)._debug_frame_count = ((window as any)._debug_frame_count || 0) + 1;
       if ((window as any)._debug_frame_count === 1) console.log('[DEBUG] First onBeforeRenderObservable fired');
 
-      const dt = this.engine.getDeltaTime() / 1000;
       GE.tick(dt);
       this.renderer.sync();
     });

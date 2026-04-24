@@ -75,38 +75,44 @@ export class FloraEngine {
     this._cachedPlants = null;
   }
 
-  doFrameCycle = (dt: number, context: FloraContext) => {
-    // Handle environment logic first
-    for (const plant of this.plants) {
-      if (!plant.isDead()) {
-        const cell = context.terrain.getPixelCell(plant.position.x, plant.position.y);
-        // Flora dies instantly in Water or Sand
-        if (cell && (cell.terrain === TerrainType.WATER || cell.terrain === TerrainType.SAND)) {
-          plant.modifyEnergy(-plant.lifeEnergy); // Instant kill
-        }
-      }
+  removePlant(id: number) {
+    if (this._plants.has(id)) {
+      this._plants.delete(id);
+      this._cachedPlants = null;
     }
+  }
 
-    // Remove consumed and dead plants
+  clearInvalidPlants(terrain: WorldMapEngine, centerX: number, centerY: number, radius: number) {
+    const radiusSquared = radius * radius;
     for (const plant of this.plants) {
-      if (plant.isConsumed() || plant.isDead()) {
-        this._plants.delete(plant.id);
-        this._cachedPlants = null;
+      const dx = plant.position.x - centerX;
+      const dy = plant.position.y - centerY;
+      if (dx * dx + dy * dy <= radiusSquared) {
+         // Plant is inside the modified brush circle, check if it was overwritten by Sand or Water
+         const cell = terrain.getPixelCell(plant.position.x, plant.position.y);
+         if (cell && (cell.terrain === TerrainType.WATER || cell.terrain === TerrainType.SAND)) {
+             this.removePlant(plant.id);
+         }
       }
     }
+  }
+
+  doFrameCycle = (dt: number, context: FloraContext) => {
+    // Intentionally left empty as per optimization logic:
+    // Plats do not recalculate their live states every frame. They wait for external events to modify stats.
   }
 
   doSmallCycle = () => {
-    this.plants.forEach(thing => {
-      thing.ageUp();
-      if (thing.lifeEnergy < -20) {
-        this._plants.delete(thing.id);
-        this._cachedPlants = null;
-      }
-    });
+    // Intentionally left empty - no aging calculation tick needed
   }
 
   doBigCycle = () => {
+    // Very infrequent lazy cleanup in case external methods missed garbage collecting dead flora
+    for (const plant of this.plants) {
+      if (plant.isConsumed() || plant.isDead()) {
+        this.removePlant(plant.id);
+      }
+    }
   }
 }
 

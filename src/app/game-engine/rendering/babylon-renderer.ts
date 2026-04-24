@@ -168,6 +168,7 @@ export class BabylonRenderer {
 
   private entityShadows: Map<string, BABYLON.InstancedMesh[]> = new Map();
   private blobShadowBase!: BABYLON.Mesh;
+  private thinShadowBases: Map<string, BABYLON.Mesh> = new Map(); // specifically for Thin Instances
 
   // Terrain
   private terrainGround!: BABYLON.Mesh;
@@ -194,6 +195,7 @@ export class BabylonRenderer {
   private sunLight!: BABYLON.DirectionalLight;
 
   private activeBrush: 'creature' | 'plant' | 'grass' | 'sand' | 'water' | null = null;
+  private brushSize: number = 20;
   private creativePanel!: GUI.Rectangle;
   private shadowGenerator!: BABYLON.CascadedShadowGenerator;
 
@@ -255,6 +257,7 @@ export class BabylonRenderer {
     this.cursorMesh.material = cursorMat;
     this.cursorMesh.position.y = 2; // Slightly above ground
     this.cursorMesh.isPickable = false; // Prevent blocking the raycast!
+    this.cursorMesh.scaling.setAll(this.brushSize / 4);
 
     // Add a light to illuminate the area under cursor
     this.cursorLight = new BABYLON.PointLight("cursorLight", new BABYLON.Vector3(0, 15, 0), this.scene);
@@ -266,16 +269,62 @@ export class BabylonRenderer {
   private initUI() {
     this.uiLayer = GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI", true, this.scene);
     this.createCreativePanel();
+
+    // FPS Counter
+    const fpsText = new GUI.TextBlock();
+    fpsText.text = "0 FPS";
+    fpsText.color = "#0ea5e9";
+    fpsText.fontSize = 18;
+    fpsText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+    fpsText.textVerticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
+    fpsText.paddingTop = "10px";
+    fpsText.paddingLeft = "10px";
+    fpsText.width = "150px";
+    fpsText.height = "40px";
+    fpsText.fontFamily = "Roboto, Arial, sans-serif";
+    fpsText.fontWeight = "bold";
+    // Adding solid outline for readability against any background
+    fpsText.outlineColor = "#0f172a";
+    fpsText.outlineWidth = 3;
+    
+    this.uiLayer.addControl(fpsText);
+
+    this.scene.onBeforeRenderObservable.add(() => {
+      fpsText.text = `${this.scene.getEngine().getFps().toFixed()} FPS`;
+    });
   }
 
   private applyActiveBrush(x: number, y: number) {
     if (!this.activeBrush) return;
-    switch (this.activeBrush) {
-      case 'creature': GE.world.fauna.createCreature(GE.world.fauna.creaturesDef.ant, x, y); break;
-      case 'plant': GE.world.flora.createPlant(GE.world.flora.plantsDef.bush, x, y); break;
-      case 'grass': GE.world.terrain.setPixelBiome(x, y, TerrainType.GRASS); break;
-      case 'sand': GE.world.terrain.setPixelBiome(x, y, TerrainType.SAND); break;
-      case 'water': GE.world.terrain.setPixelBiome(x, y, TerrainType.WATER); break;
+
+    if (this.activeBrush === 'grass' || this.activeBrush === 'sand' || this.activeBrush === 'water') {
+        const terrain = this.activeBrush === 'grass' ? TerrainType.GRASS : 
+                        this.activeBrush === 'sand' ? TerrainType.SAND : 
+                        TerrainType.WATER;
+        
+        GE.world.terrain.paintBiomeCircle(x, y, this.brushSize, terrain);
+        
+        // Remove plants that are overwritten by Water or Sand brushing
+        GE.world.flora.clearInvalidPlants(GE.world.terrain, x, y, this.brushSize);
+    } else {
+        const angle = Math.random() * Math.PI * 2;
+        const r = Math.sqrt(Math.random()) * this.brushSize;
+        const dx = Math.cos(angle) * r;
+        const dy = Math.sin(angle) * r;
+        const px = x + dx;
+        const py = y + dy;
+
+        switch (this.activeBrush) {
+          case 'creature': 
+             GE.world.fauna.createCreature(GE.world.fauna.creaturesDef.ant, px, py); 
+             break;
+          case 'plant': 
+             const cell = GE.world.terrain.getPixelCell(px, py);
+             if (cell && cell.terrain === TerrainType.GRASS) {
+                 GE.world.flora.createPlant(GE.world.flora.plantsDef.bush, px, py); 
+             }
+             break;
+        }
     }
   }
 
@@ -290,6 +339,7 @@ export class BabylonRenderer {
 
     const rootStack = new GUI.StackPanel();
     rootStack.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
+    rootStack.width = "100%";
     rootStack.paddingTop = "20px";
     rootStack.paddingLeft = "10px";
     rootStack.paddingRight = "10px";
@@ -305,15 +355,19 @@ export class BabylonRenderer {
     rootStack.addControl(title);
 
     // Tabs Container
-    const tabsContainer = new GUI.StackPanel();
-    tabsContainer.isVertical = false;
+    const tabsContainer = new GUI.Grid();
+    tabsContainer.addColumnDefinition(0.5);
+    tabsContainer.addColumnDefinition(0.5);
     tabsContainer.height = "40px";
     tabsContainer.paddingBottom = "10px";
+    tabsContainer.width = "100%";
     rootStack.addControl(tabsContainer);
 
     // Tab content containers
     const brushesPanel = new GUI.StackPanel();
+    brushesPanel.width = "100%";
     const liveOptionsPanel = new GUI.StackPanel();
+    liveOptionsPanel.width = "100%";
     liveOptionsPanel.isVisible = false;
 
     // Helper to create buttons
@@ -325,7 +379,7 @@ export class BabylonRenderer {
       btn.thickness = 0;
       btn.cornerRadius = 3;
       btn.paddingBottom = "5px";
-      if (isTab) btn.width = "50%";
+      if (isTab) btn.width = "100%"; // Changed from 50% as Grid cell takes 50%
       btn.onPointerUpObservable.add(onClick);
       return btn;
     };
@@ -346,8 +400,8 @@ export class BabylonRenderer {
     }, true);
     
     brushesTab.background = "#475569";
-    tabsContainer.addControl(brushesTab);
-    tabsContainer.addControl(liveOptionsTab);
+    tabsContainer.addControl(brushesTab, 0, 0);
+    tabsContainer.addControl(liveOptionsTab, 0, 1);
 
     // Fill panels
     rootStack.addControl(brushesPanel);
@@ -447,6 +501,40 @@ export class BabylonRenderer {
 
     brushesPanel.addControl(entityGrid);
 
+    brushesPanel.addControl(createHeader("Brush Size"));
+    
+    const sizePanel = new GUI.StackPanel();
+    sizePanel.isVertical = false;
+    sizePanel.height = "30px";
+    sizePanel.paddingBottom = "10px";
+    
+    const sizeSlider = new GUI.Slider();
+    sizeSlider.minimum = 4;
+    sizeSlider.maximum = 100;
+    sizeSlider.value = this.brushSize;
+    sizeSlider.height = "20px";
+    sizeSlider.width = "180px";
+    sizeSlider.color = "#0ea5e9";
+    sizeSlider.background = "#334155";
+    
+    const sizeLabel = new GUI.TextBlock();
+    sizeLabel.text = this.brushSize.toFixed(0);
+    sizeLabel.color = "white";
+    sizeLabel.width = "40px";
+    sizeLabel.fontSize = 14;
+
+    sizeSlider.onValueChangedObservable.add((value) => {
+      this.brushSize = value;
+      sizeLabel.text = Math.floor(value).toString();
+      if (this.cursorMesh) {
+        this.cursorMesh.scaling.setAll(value / 4);
+      }
+    });
+    
+    sizePanel.addControl(sizeSlider);
+    sizePanel.addControl(sizeLabel);
+    brushesPanel.addControl(sizePanel);
+
     brushesPanel.addControl(createHeader("Terrain"));
     const brushGrassBtn = createButton("Grass", () => selectBrush('grass', brushGrassBtn));
     const brushSandBtn = createButton("Sand", () => selectBrush('sand', brushSandBtn));
@@ -468,6 +556,9 @@ export class BabylonRenderer {
     }));
     liveOptionsPanel.addControl(createButton("Reset Biomes", () => {
       GE.world.terrain.reseedMap();
+    }));
+    liveOptionsPanel.addControl(createButton("Generate Map", () => {
+      GE.world.terrain.generateMap();
     }));
   }
 
@@ -1196,6 +1287,7 @@ export class BabylonRenderer {
     
     const plantsByType = new Map<string, any[]>();
     for (const plant of plants) {
+      if (plant.lifeEnergy <= 0) continue; // Dead flora doesn't render
       const type = plant.resourceName;
       if (!plantsByType.has(type)) plantsByType.set(type, []);
       plantsByType.get(type)!.push(plant);
@@ -1205,58 +1297,61 @@ export class BabylonRenderer {
        const base = this.entityBases.get(type);
        if (!base) continue;
 
-       let instances = this.entityInstances.get(type);
-       if (!instances) {
-         instances = [];
-         this.entityInstances.set(type, instances);
-       }
-       let shadowInstances = this.entityShadows.get(type);
-       if (!shadowInstances) {
-         shadowInstances = [];
-         this.entityShadows.set(type, shadowInstances);
+       let shadowBase = this.thinShadowBases.get(type);
+       if (!shadowBase) {
+           shadowBase = this.blobShadowBase.clone(type + "_thinShadowBase");
+           this.thinShadowBases.set(type, shadowBase);
        }
 
-       while (instances.length < typePlants.length) {
-         const inst = base.createInstance(type + "_" + instances.length);
-         this.shadowGenerator.addShadowCaster(inst, false);
-         instances.push(inst);
-         shadowInstances.push(this.blobShadowBase.createInstance(type + "_shd_" + shadowInstances.length));
-       }
-       while (instances.length > typePlants.length) {
-         const inst = instances.pop();
-         if (inst) {
-           this.shadowGenerator.removeShadowCaster(inst);
-           inst.dispose();
+       // For Thin Instances, the base mesh MUST be visible to render the instances.
+       // We toggle it to false if there are 0 plants to prevent drawing the base mesh itself.
+       base.isVisible = typePlants.length > 0;
+       base.alwaysSelectAsActiveMesh = true; // Prevents the instanced batch from being frustum-culled
+       
+       shadowBase.isVisible = typePlants.length > 0;
+       shadowBase.alwaysSelectAsActiveMesh = true;
+
+       // We use a property to cache count so we only rebuild the float array when a plant spawns/dies
+       const lastCount = (base as any)._lastThinCount;
+       
+       if (lastCount !== typePlants.length) {
+         if (lastCount === undefined) {
+             this.shadowGenerator.addShadowCaster(base, true); // true = include thin instances
          }
-         const shd = shadowInstances.pop();
-         if (shd) shd.dispose();
-       }
 
-       typePlants.forEach((plant: any, index: number) => {
-         const inst = instances![index];
-         const shdInst = shadowInstances![index];
-         inst.position.x = plant.position.x;
-         inst.position.z = plant.position.y;
+         const buffer = new Float32Array(typePlants.length * 16);
+         const shadowBuffer = new Float32Array(typePlants.length * 16);
          
-         if (plant.lifeEnergy > 0) {
-           inst.isVisible = true;
-           shdInst.isVisible = true;
+         const rotAxis = BABYLON.Vector3.Up();
+         const quatIdentity = BABYLON.Quaternion.Identity();
+         
+         for (let i = 0; i < typePlants.length; i++) {
+           const plant = typePlants[i];
            const baseEnergy = typeof plant.getInitialEnergy === "function" ? plant.getInitialEnergy() : 200;
            let scale = Math.max(0.3, Math.min(3.0, baseEnergy / 80));
            if (type === "Bush") scale *= 1.4;
-           inst.scaling.setAll(scale);
-           inst.position.y = 0;
-           inst.rotation.y = plant.id * 1.618;
            
-           shdInst.position.x = inst.position.x;
-           shdInst.position.z = inst.position.z;
-           shdInst.position.y = 0.05;
-           shdInst.scaling.setAll(scale * 0.7); // blob shadow relatively smaller
-         } else {
-           inst.isVisible = false;
-           shdInst.isVisible = false;
+           const rotY = plant.id * 1.618;
+           
+           const matrix = BABYLON.Matrix.Compose(
+             new BABYLON.Vector3(scale, scale, scale),
+             BABYLON.Quaternion.RotationAxis(rotAxis, rotY),
+             new BABYLON.Vector3(plant.position.x, 0, plant.position.y)
+           );
+           matrix.copyToArray(buffer, i * 16);
+           
+           const shadowMatrix = BABYLON.Matrix.Compose(
+             new BABYLON.Vector3(scale * 0.7, scale * 0.7, scale * 0.7),
+             quatIdentity,
+             new BABYLON.Vector3(plant.position.x, 0.05, plant.position.y)
+           );
+           shadowMatrix.copyToArray(shadowBuffer, i * 16);
          }
-       });
+         
+         base.thinInstanceSetBuffer("matrix", buffer, 16, false);
+         shadowBase.thinInstanceSetBuffer("matrix", shadowBuffer, 16, false);
+         (base as any)._lastThinCount = typePlants.length;
+       }
     }
 
     // --- Fauna ---

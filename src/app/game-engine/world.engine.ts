@@ -61,7 +61,12 @@ export class WorldEngine {
   }
 
   doSmallCycle = () => {
-    this.fauna.doSmallCycle();
+    this.fauna.doSmallCycle({
+      plants: this.flora.plants,
+      creatures: this.fauna.creatures,
+      worldBorders: this.worldBorders,
+      terrain: this.terrain,
+    });
     this.flora.doSmallCycle();
     this.terrain.doSmallCycle();
     this.biomes.doSmallCycle({
