@@ -20,19 +20,19 @@ interface BiomePalette {
 
 const BIOME_PALETTES: Record<string, BiomePalette> = {
   [TerrainType.WATER]: {
-    low:  [8,   56, 120],    // deep ocean blue
+    low: [8, 56, 120],    // deep ocean blue
     high: [45, 140, 210],    // shallow turquoise
     edge: [80, 180, 220],    // coastal foam tint
   },
   [TerrainType.SAND]: {
-    low:  [180, 155,  90],   // dark wet sand
+    low: [180, 155, 90],   // dark wet sand
     high: [240, 220, 160],   // bright dry sand
     edge: [210, 195, 130],   // damp transition
   },
   [TerrainType.GRASS]: {
-    low:  [30, 100,  50],    // dark forest green
+    low: [30, 100, 50],    // dark forest green
     high: [90, 190, 100],    // bright meadow green
-    edge: [70, 160,  85],    // mid transition green
+    edge: [70, 160, 85],    // mid transition green
   },
 };
 
@@ -44,7 +44,7 @@ const BLEND_RADIUS = 3; // pixels of blend zone at each cell edge
 
 const BIOME_PRIORITY: Record<string, number> = {
   [TerrainType.WATER]: 1,  // lowest — sits below everything
-  [TerrainType.SAND]:  2,  // sand drifts over water
+  [TerrainType.SAND]: 2,  // sand drifts over water
   [TerrainType.GRASS]: 3,  // vegetation overgrows sand & shore
 };
 
@@ -78,7 +78,7 @@ function computeBiomePixelColor(
   const elevT = Math.min(1, Math.max(0, (z || 0) / 10));
   const sNoise = smoothNoise(px, py);
   const pNoise = pixelNoise(px, py);
-  
+
   const t = Math.min(1, Math.max(0, elevT + sNoise * 0.05));
 
   let r = palette.low[0] + (palette.high[0] - palette.low[0]) * t;
@@ -120,10 +120,10 @@ function computeBiomePixelNormal(
 ): [number, number, number] {
   const sNoise = smoothNoise(px, py);
   const pNoise = pixelNoise(px, py);
-  
+
   // Base tangent space normal pointing straight up: (128, 128, 255)
   let nx = 128, ny = 128, nz = 255;
-  
+
   if (terrain === TerrainType.WATER) {
     // Very gentle and broad ocean waves
     const waveX = Math.sin(px * 0.05 + py * 0.08);
@@ -160,7 +160,7 @@ function computeBiomePixelNormal(
 export class BabylonRenderer {
   private scene: BABYLON.Scene;
   private readonly fallbackMapSize = 4000;
-  
+
   // Base meshes registry (keyed by entity `resourceName` or `speciesName`)
   private entityBases: Map<string, BABYLON.Mesh> = new Map();
   // Active instances per entity type
@@ -286,7 +286,7 @@ export class BabylonRenderer {
     // Adding solid outline for readability against any background
     fpsText.outlineColor = "#0f172a";
     fpsText.outlineWidth = 3;
-    
+
     this.uiLayer.addControl(fpsText);
 
     this.scene.onBeforeRenderObservable.add(() => {
@@ -298,33 +298,33 @@ export class BabylonRenderer {
     if (!this.activeBrush) return;
 
     if (this.activeBrush === 'grass' || this.activeBrush === 'sand' || this.activeBrush === 'water') {
-        const terrain = this.activeBrush === 'grass' ? TerrainType.GRASS : 
-                        this.activeBrush === 'sand' ? TerrainType.SAND : 
-                        TerrainType.WATER;
-        
-        GE.world.terrain.paintBiomeCircle(x, y, this.brushSize, terrain);
-        
-        // Remove plants that are overwritten by Water or Sand brushing
-        GE.world.flora.clearInvalidPlants(GE.world.terrain, x, y, this.brushSize);
-    } else {
-        const angle = Math.random() * Math.PI * 2;
-        const r = Math.sqrt(Math.random()) * this.brushSize;
-        const dx = Math.cos(angle) * r;
-        const dy = Math.sin(angle) * r;
-        const px = x + dx;
-        const py = y + dy;
+      const terrain = this.activeBrush === 'grass' ? TerrainType.GRASS :
+        this.activeBrush === 'sand' ? TerrainType.SAND :
+          TerrainType.WATER;
 
-        switch (this.activeBrush) {
-          case 'creature': 
-             GE.world.fauna.createCreature(GE.world.fauna.creaturesDef.ant, px, py); 
-             break;
-          case 'plant': 
-             const cell = GE.world.terrain.getPixelCell(px, py);
-             if (cell && cell.terrain === TerrainType.GRASS) {
-                 GE.world.flora.createPlant(GE.world.flora.plantsDef.bush, px, py); 
-             }
-             break;
-        }
+      GE.world.terrain.paintBiomeCircle(x, y, this.brushSize, terrain);
+
+      // Remove plants that are overwritten by Water or Sand brushing
+      GE.world.flora.clearInvalidPlants(GE.world.terrain, x, y, this.brushSize);
+    } else {
+      const angle = Math.random() * Math.PI * 2;
+      const r = Math.sqrt(Math.random()) * this.brushSize;
+      const dx = Math.cos(angle) * r;
+      const dy = Math.sin(angle) * r;
+      const px = x + dx;
+      const py = y + dy;
+
+      switch (this.activeBrush) {
+        case 'creature':
+          GE.world.fauna.createCreature(GE.world.fauna.creaturesDef.ant, px, py);
+          break;
+        case 'plant':
+          const cell = GE.world.terrain.getPixelCell(px, py);
+          if (cell && cell.terrain === TerrainType.GRASS) {
+            GE.world.flora.createPlant(GE.world.flora.plantsDef.bush, px, py);
+          }
+          break;
+      }
     }
   }
 
@@ -391,14 +391,14 @@ export class BabylonRenderer {
       brushesTab.background = "#475569";
       liveOptionsTab.background = "#334155";
     }, true);
-    
+
     const liveOptionsTab = createButton("System", () => {
       brushesPanel.isVisible = false;
       liveOptionsPanel.isVisible = true;
       brushesTab.background = "#334155";
       liveOptionsTab.background = "#475569";
     }, true);
-    
+
     brushesTab.background = "#475569";
     tabsContainer.addControl(brushesTab, 0, 0);
     tabsContainer.addControl(liveOptionsTab, 0, 1);
@@ -502,12 +502,12 @@ export class BabylonRenderer {
     brushesPanel.addControl(entityGrid);
 
     brushesPanel.addControl(createHeader("Brush Size"));
-    
+
     const sizePanel = new GUI.StackPanel();
     sizePanel.isVertical = false;
     sizePanel.height = "30px";
     sizePanel.paddingBottom = "10px";
-    
+
     const sizeSlider = new GUI.Slider();
     sizeSlider.minimum = 4;
     sizeSlider.maximum = 100;
@@ -516,7 +516,7 @@ export class BabylonRenderer {
     sizeSlider.width = "180px";
     sizeSlider.color = "#0ea5e9";
     sizeSlider.background = "#334155";
-    
+
     const sizeLabel = new GUI.TextBlock();
     sizeLabel.text = this.brushSize.toFixed(0);
     sizeLabel.color = "white";
@@ -530,7 +530,7 @@ export class BabylonRenderer {
         this.cursorMesh.scaling.setAll(value / 4);
       }
     });
-    
+
     sizePanel.addControl(sizeSlider);
     sizePanel.addControl(sizeLabel);
     brushesPanel.addControl(sizePanel);
@@ -542,7 +542,7 @@ export class BabylonRenderer {
     brushesPanel.addControl(brushGrassBtn);
     brushesPanel.addControl(brushSandBtn);
     brushesPanel.addControl(brushWaterBtn);
-    
+
     const disableBrushBtn = createButton("Disable Brush", () => selectBrush(null, disableBrushBtn));
     disableBrushBtn.paddingTop = "10px";
     brushesPanel.addControl(disableBrushBtn);
@@ -551,8 +551,8 @@ export class BabylonRenderer {
     liveOptionsPanel.addControl(createHeader("Actions"));
     liveOptionsPanel.addControl(createButton("Pool (Spawn 10)", () => {
       const { world } = GE;
-      Array.from({ length: 10 }).forEach(() => world.flora.createPlant());
-      Array.from({ length: 10 }).forEach(() => world.fauna.createCreature());
+      Array.from({ length: 1000 }).forEach(() => world.flora.createPlant());
+      Array.from({ length: 1000 }).forEach(() => world.fauna.createCreature());
     }));
     liveOptionsPanel.addControl(createButton("Reset Biomes", () => {
       GE.world.terrain.reseedMap();
@@ -773,7 +773,7 @@ export class BabylonRenderer {
 
           ctx.putImageData(imgData, 0, 0);
           image.source = canvas.toDataURL("image/jpeg", 0.8);
-        }).catch(() => {})
+        }).catch(() => { })
       );
     }
 
@@ -786,7 +786,7 @@ export class BabylonRenderer {
     this.scene.onPointerObservable.add((pointerInfo) => {
       // Find what the scene picks at pointer position
       const pickResult = this.scene.pick(this.scene.pointerX, this.scene.pointerY);
-      
+
       if (pickResult?.hit && pickResult.pickedMesh === this.terrainGround) {
         // Prevent painting if hovering over the right 250px UI panel
         const canvasWidth = this.scene.getEngine().getRenderWidth();
@@ -796,7 +796,7 @@ export class BabylonRenderer {
 
         const point = pickResult.pickedPoint;
         if (!point) return;
-        
+
         // Abstract engine uses x for X, and y for Z.
         // Also abstract engine works from top-left (0,0) instead of center, but we aligned the ground origin so point.x and point.z directly map to abstract X, Y!
         const abstractX = point.x;
@@ -834,7 +834,7 @@ export class BabylonRenderer {
       height: height,
       subdivisions: 1
     }, this.scene);
-    
+
     // Abstract system uses (0,0) as top left.
     // So the center of the ground should be (width/2, height/2).
     this.terrainGround.position.x = width / 2;
@@ -859,7 +859,7 @@ export class BabylonRenderer {
     terrainMaterial.sheen.isEnabled = true;
     terrainMaterial.sheen.intensity = 0.15;
     terrainMaterial.sheen.color = new BABYLON.Color3(0.6, 0.8, 0.5);
-    
+
     this.terrainGround.material = terrainMaterial;
 
     // Subscribe to map changes to update the texture dynamically
@@ -898,7 +898,7 @@ export class BabylonRenderer {
     const shadowCtx = shadowTexture.getContext();
     const cx = shadowTexSize / 2;
     const cy = shadowTexSize / 2;
-    
+
     // Radial gradient from 85% opacity black to 0
     const radialGrad = shadowCtx.createRadialGradient(cx, cy, 0, cx, cy, cx);
     radialGrad.addColorStop(0, "rgba(0, 0, 0, 0.85)");
@@ -980,7 +980,7 @@ export class BabylonRenderer {
     this.shadowGenerator.addShadowCaster(bushMesh, true);
     this.entityBases.set("Bush", bushMesh);
     this.entityInstances.set("Bush", []);
-    
+
     // --- Fauna base: Ant-like segmented body ---
     const head = BABYLON.MeshBuilder.CreateSphere("head", { diameter: 2.5 }, this.scene);
     head.position.z = 2.5; // Front
@@ -995,7 +995,7 @@ export class BabylonRenderer {
     // Merge into a single base
     const antMesh = BABYLON.Mesh.MergeMeshes([head, thorax, abdomen], true, true, undefined, false, true) as BABYLON.Mesh;
     antMesh.isVisible = false;
-    antMesh.registerInstancedBuffer("color", 4); 
+    antMesh.registerInstancedBuffer("color", 4);
     this.shadowGenerator.addShadowCaster(antMesh, true);
 
     const faunaMat = new BABYLON.StandardMaterial("faunaMat", this.scene);
@@ -1003,7 +1003,7 @@ export class BabylonRenderer {
     faunaMat.specularColor = new BABYLON.Color3(0.3, 0.3, 0.3); // Slight bug shell shine
     faunaMat.specularPower = 32;
     antMesh.material = faunaMat;
-    
+
     this.entityBases.set("Ant", antMesh);
     this.entityInstances.set("Ant", []);
   }
@@ -1012,18 +1012,18 @@ export class BabylonRenderer {
     if (!this.terrainTexture) return;
 
     let { width, height } = this.getRenderableMapDimensions();
-    
+
     if (width <= 0 || height <= 0) return;
 
     if (this.lastTerrainWidth !== width || this.lastTerrainHeight !== height) {
       if ((this as any)._rebuildCounter > 10) {
-         throw new Error("Infinite loop detected in rebuildTerrainMesh! Width: " + width + " Height: " + height);
+        throw new Error("Infinite loop detected in rebuildTerrainMesh! Width: " + width + " Height: " + height);
       }
       (this as any)._rebuildCounter = ((this as any)._rebuildCounter || 0) + 1;
       this.lastTerrainWidth = width;
       this.lastTerrainHeight = height;
       this.rebuildTerrainMesh(width, height);
-      return; 
+      return;
     }
     (this as any)._rebuildCounter = 0;
 
@@ -1032,7 +1032,7 @@ export class BabylonRenderer {
     const rows = terrain.tiles.rows || 1;
 
     if (cols * rows > 10000000) {
-       throw new Error(`Safety guard: Array size ${cols * rows} is too large and will freeze the browser`);
+      throw new Error(`Safety guard: Array size ${cols * rows} is too large and will freeze the browser`);
     }
 
     const texW = cols * CELL_DETAIL;
@@ -1129,27 +1129,27 @@ export class BabylonRenderer {
               blendR += nc_r * weight;
               blendG += nc_g * weight;
               blendB += nc_b * weight;
-              
+
               const [nn_r, nn_g, nn_b] = computeBiomePixelNormal(
                 neighbor.terrain, neighbor.z, px, py
               );
               blendNR += nn_r * weight;
               blendNG += nn_g * weight;
               blendNB += nn_b * weight;
-              
+
               totalWeight += weight;
             };
 
             // 4 cardinal neighbors
-            sampleNeighbor(-1,  0, distL, 1.0);
-            sampleNeighbor( 1,  0, distR, 1.0);
-            sampleNeighbor( 0, -1, distT, 1.0);
-            sampleNeighbor( 0,  1, distB, 1.0);
+            sampleNeighbor(-1, 0, distL, 1.0);
+            sampleNeighbor(1, 0, distR, 1.0);
+            sampleNeighbor(0, -1, distT, 1.0);
+            sampleNeighbor(0, 1, distB, 1.0);
             // 4 diagonal neighbors (half weight for softer corners)
             sampleNeighbor(-1, -1, Math.max(distL, distT), 0.5);
-            sampleNeighbor( 1, -1, Math.max(distR, distT), 0.5);
-            sampleNeighbor(-1,  1, Math.max(distL, distB), 0.5);
-            sampleNeighbor( 1,  1, Math.max(distR, distB), 0.5);
+            sampleNeighbor(1, -1, Math.max(distR, distT), 0.5);
+            sampleNeighbor(-1, 1, Math.max(distL, distB), 0.5);
+            sampleNeighbor(1, 1, Math.max(distR, distB), 0.5);
 
             // Composite: mix neighbor colors into self
             if (totalWeight > 0) {
@@ -1185,14 +1185,14 @@ export class BabylonRenderer {
         const canvasY = (texH - 1) - py;
         const imgY = canvasY - (texH - endY);
         const imgX = px - startX;
-        
+
         const offset = (imgY * dirtyW + imgX) * 4;
-        data[offset]     = r;
+        data[offset] = r;
         data[offset + 1] = g;
         data[offset + 2] = b;
         data[offset + 3] = 255;
-        
-        nData[offset]     = nr;
+
+        nData[offset] = nr;
         nData[offset + 1] = ng;
         nData[offset + 2] = nb;
         nData[offset + 3] = 255;
@@ -1219,7 +1219,7 @@ export class BabylonRenderer {
       height: height,
       subdivisions: 1
     }, this.scene);
-    
+
     this.terrainGround.position.x = width / 2;
     this.terrainGround.position.z = height / 2;
     this.terrainGround.receiveShadows = true;
@@ -1229,7 +1229,7 @@ export class BabylonRenderer {
     const texH = rows * CELL_DETAIL;
     this.terrainTexture = new BABYLON.DynamicTexture("terrainTexture", { width: texW, height: texH }, this.scene, false, BABYLON.Texture.NEAREST_SAMPLINGMODE);
     this.terrainNormalTexture = new BABYLON.DynamicTexture("terrainNormalTexture", { width: texW, height: texH }, this.scene, false, BABYLON.Texture.NEAREST_SAMPLINGMODE);
-    
+
     // Rebuild with PBR material
     const terrainMaterial = new BABYLON.PBRMaterial("terrainMat", this.scene);
     terrainMaterial.albedoTexture = this.terrainTexture;
@@ -1241,9 +1241,9 @@ export class BabylonRenderer {
     terrainMaterial.sheen.isEnabled = true;
     terrainMaterial.sheen.intensity = 0.15;
     terrainMaterial.sheen.color = new BABYLON.Color3(0.6, 0.8, 0.5);
-    
+
     this.terrainGround.material = terrainMaterial;
-    
+
     setTimeout(() => {
       this.updateTerrainTexture();
     }, 0);
@@ -1284,7 +1284,7 @@ export class BabylonRenderer {
     // --- Flora ---
     const plants = GE.world.flora.plants;
     if (isFirstSync) console.log('[DEBUG] sync() - Flora length = ' + plants.length);
-    
+
     const plantsByType = new Map<string, any[]>();
     for (const plant of plants) {
       if (plant.lifeEnergy <= 0) continue; // Dead flora doesn't render
@@ -1294,70 +1294,70 @@ export class BabylonRenderer {
     }
 
     for (const [type, typePlants] of plantsByType) {
-       const base = this.entityBases.get(type);
-       if (!base) continue;
+      const base = this.entityBases.get(type);
+      if (!base) continue;
 
-       let shadowBase = this.thinShadowBases.get(type);
-       if (!shadowBase) {
-           shadowBase = this.blobShadowBase.clone(type + "_thinShadowBase");
-           this.thinShadowBases.set(type, shadowBase);
-       }
+      let shadowBase = this.thinShadowBases.get(type);
+      if (!shadowBase) {
+        shadowBase = this.blobShadowBase.clone(type + "_thinShadowBase");
+        this.thinShadowBases.set(type, shadowBase);
+      }
 
-       // For Thin Instances, the base mesh MUST be visible to render the instances.
-       // We toggle it to false if there are 0 plants to prevent drawing the base mesh itself.
-       base.isVisible = typePlants.length > 0;
-       base.alwaysSelectAsActiveMesh = true; // Prevents the instanced batch from being frustum-culled
-       
-       shadowBase.isVisible = typePlants.length > 0;
-       shadowBase.alwaysSelectAsActiveMesh = true;
+      // For Thin Instances, the base mesh MUST be visible to render the instances.
+      // We toggle it to false if there are 0 plants to prevent drawing the base mesh itself.
+      base.isVisible = typePlants.length > 0;
+      base.alwaysSelectAsActiveMesh = true; // Prevents the instanced batch from being frustum-culled
 
-       // We use a property to cache count so we only rebuild the float array when a plant spawns/dies
-       const lastCount = (base as any)._lastThinCount;
-       
-       if (lastCount !== typePlants.length) {
-         if (lastCount === undefined) {
-             this.shadowGenerator.addShadowCaster(base, true); // true = include thin instances
-         }
+      shadowBase.isVisible = typePlants.length > 0;
+      shadowBase.alwaysSelectAsActiveMesh = true;
 
-         const buffer = new Float32Array(typePlants.length * 16);
-         const shadowBuffer = new Float32Array(typePlants.length * 16);
-         
-         const rotAxis = BABYLON.Vector3.Up();
-         const quatIdentity = BABYLON.Quaternion.Identity();
-         
-         for (let i = 0; i < typePlants.length; i++) {
-           const plant = typePlants[i];
-           const baseEnergy = typeof plant.getInitialEnergy === "function" ? plant.getInitialEnergy() : 200;
-           let scale = Math.max(0.3, Math.min(3.0, baseEnergy / 80));
-           if (type === "Bush") scale *= 1.4;
-           
-           const rotY = plant.id * 1.618;
-           
-           const matrix = BABYLON.Matrix.Compose(
-             new BABYLON.Vector3(scale, scale, scale),
-             BABYLON.Quaternion.RotationAxis(rotAxis, rotY),
-             new BABYLON.Vector3(plant.position.x, 0, plant.position.y)
-           );
-           matrix.copyToArray(buffer, i * 16);
-           
-           const shadowMatrix = BABYLON.Matrix.Compose(
-             new BABYLON.Vector3(scale * 0.7, scale * 0.7, scale * 0.7),
-             quatIdentity,
-             new BABYLON.Vector3(plant.position.x, 0.05, plant.position.y)
-           );
-           shadowMatrix.copyToArray(shadowBuffer, i * 16);
-         }
-         
-         base.thinInstanceSetBuffer("matrix", buffer, 16, false);
-         shadowBase.thinInstanceSetBuffer("matrix", shadowBuffer, 16, false);
-         (base as any)._lastThinCount = typePlants.length;
-       }
+      // We use a property to cache count so we only rebuild the float array when a plant spawns/dies
+      const lastCount = (base as any)._lastThinCount;
+
+      if (lastCount !== typePlants.length) {
+        if (lastCount === undefined) {
+          this.shadowGenerator.addShadowCaster(base, true); // true = include thin instances
+        }
+
+        const buffer = new Float32Array(typePlants.length * 16);
+        const shadowBuffer = new Float32Array(typePlants.length * 16);
+
+        const rotAxis = BABYLON.Vector3.Up();
+        const quatIdentity = BABYLON.Quaternion.Identity();
+
+        for (let i = 0; i < typePlants.length; i++) {
+          const plant = typePlants[i];
+          const baseEnergy = typeof plant.getInitialEnergy === "function" ? plant.getInitialEnergy() : 200;
+          let scale = Math.max(0.3, Math.min(3.0, baseEnergy / 80));
+          if (type === "Bush") scale *= 1.4;
+
+          const rotY = plant.id * 1.618;
+
+          const matrix = BABYLON.Matrix.Compose(
+            new BABYLON.Vector3(scale, scale, scale),
+            BABYLON.Quaternion.RotationAxis(rotAxis, rotY),
+            new BABYLON.Vector3(plant.position.x, 0, plant.position.y)
+          );
+          matrix.copyToArray(buffer, i * 16);
+
+          const shadowMatrix = BABYLON.Matrix.Compose(
+            new BABYLON.Vector3(scale * 0.7, scale * 0.7, scale * 0.7),
+            quatIdentity,
+            new BABYLON.Vector3(plant.position.x, 0.05, plant.position.y)
+          );
+          shadowMatrix.copyToArray(shadowBuffer, i * 16);
+        }
+
+        base.thinInstanceSetBuffer("matrix", buffer, 16, false);
+        shadowBase.thinInstanceSetBuffer("matrix", shadowBuffer, 16, false);
+        (base as any)._lastThinCount = typePlants.length;
+      }
     }
 
     // --- Fauna ---
     const creatures = GE.world.fauna.creatures;
     if (isFirstSync) console.log('[DEBUG] sync() - Fauna length = ' + creatures.length);
-    
+
     const creaturesByType = new Map<string, any[]>();
     for (const creature of creatures) {
       const type = creature.speciesName;
@@ -1368,130 +1368,132 @@ export class BabylonRenderer {
     const aliveCreatureIds = new Set<number>();
 
     for (const [type, typeCreatures] of creaturesByType) {
-       const base = this.entityBases.get(type);
-       if (!base) continue;
+      const base = this.entityBases.get(type);
+      if (!base) continue;
 
-       let instances = this.entityInstances.get(type);
-       if (!instances) {
-         instances = [];
-         this.entityInstances.set(type, instances);
-       }
-       let shadowInstances = this.entityShadows.get(type);
-       if (!shadowInstances) {
-         shadowInstances = [];
-         this.entityShadows.set(type, shadowInstances);
-       }
+      let instances = this.entityInstances.get(type);
+      if (!instances) {
+        instances = [];
+        this.entityInstances.set(type, instances);
+      }
+      let shadowInstances = this.entityShadows.get(type);
+      if (!shadowInstances) {
+        shadowInstances = [];
+        this.entityShadows.set(type, shadowInstances);
+      }
 
-       while (instances.length < typeCreatures.length) {
-         const inst = base.createInstance(type + "_inst_" + instances.length);
-         inst.instancedBuffers["color"] = new BABYLON.Color4(1, 1, 1, 1);
-         this.shadowGenerator.addShadowCaster(inst, false);
-         instances.push(inst);
-         shadowInstances.push(this.blobShadowBase.createInstance(type + "_shd_" + shadowInstances.length));
-       }
-       while (instances.length > typeCreatures.length) {
-         const inst = instances.pop();
-         if (inst) {
-           this.shadowGenerator.removeShadowCaster(inst);
-           inst.dispose();
-         }
-         const shd = shadowInstances.pop();
-         if (shd) shd.dispose();
-       }
+      while (instances.length < typeCreatures.length) {
+        const inst = base.createInstance(type + "_inst_" + instances.length);
+        inst.instancedBuffers["color"] = new BABYLON.Color4(1, 1, 1, 1);
+        this.shadowGenerator.addShadowCaster(inst, false);
+        instances.push(inst);
+        shadowInstances.push(this.blobShadowBase.createInstance(type + "_shd_" + shadowInstances.length));
+      }
+      while (instances.length > typeCreatures.length) {
+        const inst = instances.pop();
+        if (inst) {
+          this.shadowGenerator.removeShadowCaster(inst);
+          inst.dispose();
+        }
+        const shd = shadowInstances.pop();
+        if (shd) shd.dispose();
+      }
 
-       typeCreatures.forEach((creature: any, index: number) => {
-         const inst = instances![index];
-         const shdInst = shadowInstances![index];
-         inst.position.x = creature.position.x;
-         inst.position.z = creature.position.y;
-         
-         inst.scaling.setAll(1);
-         inst.rotation.setAll(0);
+      typeCreatures.forEach((creature: any, index: number) => {
+        const inst = instances![index];
+        const shdInst = shadowInstances![index];
+        inst.position.x = creature.position.x;
+        inst.position.z = creature.position.y;
 
-         if (creature.lifeEnergy <= 0) {
-           if (!creature.deathReason || creature.timeSinceDeath > 3) {
-             inst.isVisible = false;
-             shdInst.isVisible = false;
-           } else {
-             inst.isVisible = true;
-             shdInst.isVisible = true;
-             shdInst.position.x = inst.position.x;
-             shdInst.position.z = inst.position.z;
-             shdInst.position.y = 0.05;
+        inst.scaling.setAll(1);
+        inst.rotation.setAll(0);
 
-             if (creature.deathReason === 'drowned') {
-                inst.position.y = 3 - (creature.timeSinceDeath / 3) * 8;
-                const scale = Math.max(0.01, 1 - (creature.timeSinceDeath / 3));
-                inst.scaling.setAll(scale);
-                shdInst.scaling.setAll(scale * 0.6); // Scale down blob with drowning
-             } else {
-                const tipAngle = Math.min(Math.PI / 2, creature.timeSinceDeath * 2);
-                inst.rotation.x = tipAngle;
-                inst.position.y = 3 - Math.sin(tipAngle) * 2;
-                shdInst.scaling.setAll(0.6); // keep blob scaled down
-             }
-             
-             if (inst.instancedBuffers["color"]) {
-               const deadColor = inst.instancedBuffers["color"] as BABYLON.Color4;
-               deadColor.r = 0.3; deadColor.g = 0.3; deadColor.b = 0.3; deadColor.a = 1;
-             }
-           }
-         } else {
-           inst.isVisible = true;
-           shdInst.isVisible = true;
-           shdInst.position.x = inst.position.x;
-           shdInst.position.z = inst.position.z;
-           shdInst.position.y = 0.05;
-           shdInst.scaling.setAll(0.6); // Contact shadow matches bug body
+        if (creature.lifeEnergy <= 0) {
+          if (!creature.deathReason || creature.timeSinceDeath > 3) {
+            inst.isVisible = false;
+            shdInst.isVisible = false;
+          } else {
+            inst.isVisible = true;
+            shdInst.isVisible = true;
+            shdInst.position.x = inst.position.x;
+            shdInst.position.z = inst.position.z;
+            shdInst.position.y = 0.05;
 
-           const dx = creature.target.x - creature.position.x;
-           const MathDz = creature.target.y - creature.position.y;
-           if (Math.abs(dx) > 0.1 || Math.abs(MathDz) > 0.1) {
-             inst.rotation.y = Math.atan2(dx, MathDz);
-           }
+            if (creature.deathReason === 'drowned') {
+              inst.position.y = 3 - (creature.timeSinceDeath / 3) * 8;
+              const scale = Math.max(0.01, 1 - (creature.timeSinceDeath / 3));
+              inst.scaling.setAll(scale);
+              shdInst.scaling.setAll(scale * 0.6); // Scale down blob with drowning
+            } else {
+              const tipAngle = Math.min(Math.PI / 2, creature.timeSinceDeath * 2);
+              inst.rotation.x = tipAngle;
+              inst.position.y = 3 - Math.sin(tipAngle) * 2;
+              shdInst.scaling.setAll(0.6); // keep blob scaled down
+            }
 
-           const walkCycle = (creature.position.x + creature.position.y) * 0.4;
-           inst.position.y = 2 + Math.abs(Math.sin(walkCycle)) * 1.0;
+            if (inst.instancedBuffers["color"]) {
+              const deadColor = inst.instancedBuffers["color"] as BABYLON.Color4;
+              deadColor.r = 0.3; deadColor.g = 0.3; deadColor.b = 0.3; deadColor.a = 1;
+            }
+          }
+        } else {
+          inst.isVisible = true;
+          shdInst.isVisible = true;
+          shdInst.position.x = inst.position.x;
+          shdInst.position.z = inst.position.z;
+          shdInst.position.y = 0.05;
+          shdInst.scaling.setAll(0.6); // Contact shadow matches bug body
 
-           const maxEnergy = 250;
-           const energyPercent = Math.min(1, Math.max(0, creature.lifeEnergy / maxEnergy));
-           
-           const h = energyPercent * 120;
-           const s = 0.7;
-           const l = 0.3 + (energyPercent * 0.2);
-           
-           const c = (1 - Math.abs(2 * l - 1)) * s;
-           const x = c * (1 - Math.abs((h / 60) % 2 - 1));
-           const m = l - c / 2;
-           
-           let r = 0, g = 0, b = 0;
-           if (0 <= h && h < 60) { r = c; g = x; b = 0; }
-           else if (60 <= h && h < 120) { r = x; g = c; b = 0; }
-           
-           if (inst.instancedBuffers["color"]) {
-             const liveColor = inst.instancedBuffers["color"] as BABYLON.Color4;
-             liveColor.r = r + m; liveColor.g = g + m; liveColor.b = b + m; liveColor.a = 1;
-           }
-           
-           aliveCreatureIds.add(creature.id);
-           
-           // SYNC UI
-           let statBox = this.creatureStatsMap.get(creature.id);
-           if (!statBox) {
-             statBox = this.createStatBox();
-             this.uiLayer.addControl(statBox);
-             statBox.linkWithMesh(inst);
-             statBox.linkOffsetY = -30;
-             this.creatureStatsMap.set(creature.id, statBox);
-           }
+          const dx = creature.target.x - creature.position.x;
+          const MathDz = creature.target.y - creature.position.y;
+          if (Math.abs(dx) > 0.1 || Math.abs(MathDz) > 0.1) {
+            inst.rotation.y = Math.atan2(dx, MathDz);
+          }
 
-           const newText = `ID: ${creature.id}\nEng: ${Math.round(creature.lifeEnergy)}\nAge: ${Math.round(creature.age)}\nAct: ${creature.currentBehavior?.name || 'idle'}`;
-           const textBlock = statBox.children[0] as GUI.TextBlock;
-           if (textBlock.text !== newText) {
-             textBlock.text = newText;
-           }
-         }
-       });
+          const walkCycle = (creature.position.x + creature.position.y) * 0.4;
+          inst.position.y = 2 + Math.abs(Math.sin(walkCycle)) * 1.0;
+
+          const maxEnergy = 250;
+          const energyPercent = Math.min(1, Math.max(0, creature.lifeEnergy / maxEnergy));
+
+          const h = energyPercent * 120;
+          const s = 0.7;
+          const l = 0.3 + (energyPercent * 0.2);
+
+          const c = (1 - Math.abs(2 * l - 1)) * s;
+          const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+          const m = l - c / 2;
+
+          let r = 0, g = 0, b = 0;
+          if (0 <= h && h < 60) { r = c; g = x; b = 0; }
+          else if (60 <= h && h < 120) { r = x; g = c; b = 0; }
+
+          if (inst.instancedBuffers["color"]) {
+            const liveColor = inst.instancedBuffers["color"] as BABYLON.Color4;
+            liveColor.r = r + m; liveColor.g = g + m; liveColor.b = b + m; liveColor.a = 1;
+          }
+
+          aliveCreatureIds.add(creature.id);
+
+          // SYNC UI
+          let statBox = this.creatureStatsMap.get(creature.id);
+          if (!statBox) {
+            statBox = this.createStatBox();
+            this.uiLayer.addControl(statBox);
+            statBox.linkOffsetY = -30;
+            this.creatureStatsMap.set(creature.id, statBox);
+          }
+          if (statBox.linkedMesh !== inst) {
+            statBox.linkWithMesh(inst);
+          }
+
+          const newText = `ID: ${creature.id}\nEng: ${Math.round(creature.lifeEnergy)}\nAge: ${Math.round(creature.age)}\nAct: ${creature.currentBehavior?.name || 'idle'}`;
+          const textBlock = statBox.children[0] as GUI.TextBlock;
+          if (textBlock.text !== newText) {
+            textBlock.text = newText;
+          }
+        }
+      });
     }
 
     // Cleanup dead UI — O(1) Set lookup instead of O(n) .find()
@@ -1507,13 +1509,13 @@ export class BabylonRenderer {
 
   private createStatBox(): GUI.Rectangle {
     const rect = new GUI.Rectangle();
-    rect.width = "70px";
-    rect.height = "55px";
+    rect.adaptWidthToChildren = true;
+    rect.adaptHeightToChildren = true;
     rect.cornerRadius = 4;
     rect.color = "rgba(56, 189, 248, 0.5)"; // cyan border
     rect.thickness = 1;
     rect.background = "rgba(15, 23, 42, 0.75)";
-    
+
     const textBlock = new GUI.TextBlock();
     textBlock.text = "Loading...";
     textBlock.color = "white";
@@ -1522,8 +1524,11 @@ export class BabylonRenderer {
     textBlock.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
     textBlock.textVerticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
     textBlock.paddingTop = "4px";
+    textBlock.paddingBottom = "4px";
     textBlock.paddingLeft = "4px";
-    
+    textBlock.paddingRight = "4px";
+    textBlock.resizeToFit = true;
+
     rect.addControl(textBlock);
     return rect;
   }

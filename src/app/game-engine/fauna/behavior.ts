@@ -190,6 +190,17 @@ export class WanderBehavior implements Behavior {
       }
 
       creature.setTarget(newTarget);
+      
+      // Randomize turn speed to be "sometimes sharp, sometimes smooth"
+      // Turn speed between 1.0 (smooth) and 5.0 (sharp)
+      creature.turnSpeed = 1.0 + Math.random() * 4.0;
+      
+      // Randomize wobble slightly to make wandering unique each leg
+      creature.wobbleAmplitude = 0.2 + Math.random() * 0.8;
+      creature.wobbleSpeed = 0.5 + Math.random() * 1.5;
+
+      // Randomize duration between target changes
+      this.targetChangeDuration = 2 + Math.random() * 3;
       this.targetChangeTimer = 0;
     }
   }

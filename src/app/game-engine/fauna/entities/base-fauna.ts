@@ -3,6 +3,7 @@ import { Vision } from "../perception";
 import { type Goal, type Behavior, type BehaviorContext } from "../behavior";
 import type { BaseFlora } from "../../flora/entities/base-flora";
 import { ActionType } from "../../shared/action-type";
+import { BehaviourName } from "../behavior";
 
 export interface BaseFaunaProps extends LifeProps {
   speed?: number;
@@ -21,6 +22,12 @@ export abstract class BaseFauna extends Life {
   // Cache of local plants to prevent checking 8,000+ plants per frame for collisions
   localPlants: BaseFlora[] = [];
   private dtAccumulator = 0;
+
+  velocity: Vector2 = { x: 0, y: 0 };
+  turnSpeed: number = 3.0;
+  wobblePhase: number = Math.random() * Math.PI * 2;
+  wobbleSpeed: number = 1.0;
+  wobbleAmplitude: number = 0.5;
 
   override energyLossPerUnit = 0.1;
   private lastPosition: Vector2;
@@ -58,26 +65,52 @@ export abstract class BaseFauna extends Life {
     const dy = this.target.y - this.position.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
 
-    if (distance <= 0.01) return;
-
-    const currentSpeed = this.calculateSpeed(distance);
-    const step = currentSpeed * dt;
-
-    let moveX = 0;
-    let moveY = 0;
-
-    if (distance <= step) {
-      moveX = this.target.x - this.position.x;
-      moveY = this.target.y - this.position.y;
-    } else {
-      const dirX = dx / distance;
-      const dirY = dy / distance;
-      moveX = dirX * step;
-      moveY = dirY * step;
+    if (distance <= 0.01) {
+      this.velocity.x = 0;
+      this.velocity.y = 0;
+      return;
     }
 
-    let nextX = this.position.x + moveX;
-    let nextY = this.position.y + moveY;
+    // 1. Arrival Behavior
+    const slowingRadius = 20.0;
+    let targetSpeed = this.baseSpeed;
+    if (distance < slowingRadius) {
+      targetSpeed = this.baseSpeed * (distance / slowingRadius);
+    }
+
+    // Preserve distance factor logic but cap at our Arrival target speed
+    const calculatedMaxSpeed = this.calculateSpeed(distance);
+    targetSpeed = Math.min(targetSpeed, calculatedMaxSpeed);
+
+    // Desired Velocity
+    const dirX = dx / distance;
+    const dirY = dy / distance;
+    let desiredVx = dirX * targetSpeed;
+    let desiredVy = dirY * targetSpeed;
+
+    // 2. Wobble (only if wandering)
+    if (this.currentBehavior && this.currentBehavior.name === BehaviourName.Wander) {
+      this.wobblePhase += this.wobbleSpeed * dt;
+      const wobbleAngle = Math.cos(this.wobblePhase) * this.wobbleAmplitude;
+
+      // Rotate desired velocity by wobbleAngle
+      const cosW = Math.cos(wobbleAngle);
+      const sinW = Math.sin(wobbleAngle);
+      const rotVx = desiredVx * cosW - desiredVy * sinW;
+      const rotVy = desiredVx * sinW + desiredVy * cosW;
+      desiredVx = rotVx;
+      desiredVy = rotVy;
+    }
+
+    // 3. Steering
+    const steerX = desiredVx - this.velocity.x;
+    const steerY = desiredVy - this.velocity.y;
+
+    this.velocity.x += steerX * this.turnSpeed * dt;
+    this.velocity.y += steerY * this.turnSpeed * dt;
+
+    let nextX = this.position.x + this.velocity.x * dt;
+    let nextY = this.position.y + this.velocity.y * dt;
     
     // Soft sliding collision ONLY with nearby cached plants (saves 8,000 array loops per frame)
     for (const plant of this.localPlants) {
