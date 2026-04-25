@@ -22,6 +22,7 @@ export abstract class BaseFauna extends Life {
   // Cache of local plants to prevent checking 8,000+ plants per frame for collisions
   localPlants: BaseFlora[] = [];
   private dtAccumulator = 0;
+  private thinkTimer = Math.random(); // Start with random offset to distribute load across frames
 
   velocity: Vector2 = { x: 0, y: 0 };
   turnSpeed: number = 3.0;
@@ -161,7 +162,10 @@ export abstract class BaseFauna extends Life {
     // Cache nearby plants for collision (radius e.g., 30)
     // Doing this less frequently saves millions of collision array loops every frame
     this.localPlants = [];
-    for (const plant of context.plants) {
+    const nearby = context.getNearbyPlants 
+      ? context.getNearbyPlants(this.position.x, this.position.y, 30)
+      : context.plants;
+    for (const plant of nearby) {
       if (plant.lifeEnergy <= 0) continue;
       // Using quick manhattan distance check first for extreme speed
       const dx = Math.abs(plant.position.x - this.position.x);
@@ -198,6 +202,12 @@ export abstract class BaseFauna extends Life {
     }
 
     this.dtAccumulator += dt;
+    this.thinkTimer += dt;
+
+    if (this.thinkTimer >= 1.0) {
+      this.thinkTimer -= 1.0;
+      this.think(context);
+    }
 
     // ONLY execute simple cached movement in the frame loop!
     this.move(dt, context);

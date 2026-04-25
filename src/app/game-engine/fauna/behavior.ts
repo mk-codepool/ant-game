@@ -26,6 +26,7 @@ export interface BehaviorContext {
     yEnd: number;
   };
   terrain: WorldMapEngine;
+  getNearbyPlants?: (x: number, y: number, radius: number) => BaseFlora[];
 }
 
 /**
@@ -55,14 +56,20 @@ export class SurviveGoal implements Goal {
   private wanderBehavior = new WanderBehavior();
 
   evaluate(creature: BaseFauna, context: BehaviorContext): Behavior {
+    // Determine the plants to consider based on vision
+    const searchRadius = creature.vision.range;
+    const nearbyPlants = context.getNearbyPlants 
+      ? context.getNearbyPlants(creature.position.x, creature.position.y, searchRadius)
+      : context.plants;
+
     // Check if we can eat an adjacent plant
-    const adjacentPlant = this.findAdjacentPlant(creature, context.plants);
+    const adjacentPlant = this.findAdjacentPlant(creature, nearbyPlants);
     if (adjacentPlant) {
       return this.eatBehavior;
     }
 
-    // Look for visible plants
-    const visiblePlants = creature.vision.findVisiblePlants(context.plants, creature.position);
+    // Look for visible plants among the nearby ones
+    const visiblePlants = creature.vision.findVisiblePlants(nearbyPlants, creature.position);
 
     if (visiblePlants.length > 0) {
       // Seek the nearest plant
@@ -99,7 +106,11 @@ export class SeekPlantBehavior implements Behavior {
   name = BehaviourName.SeekPlant;
 
   execute(creature: BaseFauna, context: BehaviorContext, dt: number): void {
-    const visiblePlants = creature.vision.findVisiblePlants(context.plants, creature.position);
+    const nearbyPlants = context.getNearbyPlants
+      ? context.getNearbyPlants(creature.position.x, creature.position.y, creature.vision.range)
+      : context.plants;
+
+    const visiblePlants = creature.vision.findVisiblePlants(nearbyPlants, creature.position);
     const nearestPlant = this.findNearestPlant(creature.position, visiblePlants);
 
     if (nearestPlant) {
@@ -136,8 +147,11 @@ export class EatBehavior implements Behavior {
 
   execute(creature: BaseFauna, context: BehaviorContext, dt: number): void {
     const adjacentDistance = 15;
+    const nearbyPlants = context.getNearbyPlants
+      ? context.getNearbyPlants(creature.position.x, creature.position.y, adjacentDistance)
+      : context.plants;
 
-    for (const plant of context.plants) {
+    for (const plant of nearbyPlants) {
       if (plant.lifeEnergy <= 0) continue;
 
       const dx = plant.position.x - creature.position.x;

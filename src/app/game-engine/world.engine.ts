@@ -41,12 +41,12 @@ export class WorldEngine {
   }
 
   doFrameCycle = (dt: number) => {
-    // Pass plants, creatures and terrain context to fauna
     this.fauna.doFrameCycle(dt, {
       plants: this.flora.plants,
       creatures: this.fauna.creatures,
       worldBorders: this.worldBorders,
       terrain: this.terrain,
+      getNearbyPlants: (x, y, radius) => this.flora.getPlantsInRadius(x, y, radius)
     });
     
     // Flora frame cycle (e.g. handle eaten plants, growing, dying in wrong biomes)
@@ -66,6 +66,7 @@ export class WorldEngine {
       creatures: this.fauna.creatures,
       worldBorders: this.worldBorders,
       terrain: this.terrain,
+      getNearbyPlants: (x, y, radius) => this.flora.getPlantsInRadius(x, y, radius)
     });
     this.flora.doSmallCycle();
     this.terrain.doSmallCycle();

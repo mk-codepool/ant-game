@@ -194,10 +194,13 @@ export class BabylonRenderer {
 
   private sunLight!: BABYLON.DirectionalLight;
 
-  private activeBrush: 'creature' | 'plant' | 'grass' | 'sand' | 'water' | null = null;
+  private activeBrush: 'creature' | 'plant' | 'tree' | 'grass' | 'sand' | 'water' | null = null;
   private brushSize: number = 20;
   private creativePanel!: GUI.Rectangle;
   private shadowGenerator!: BABYLON.CascadedShadowGenerator;
+  private showEntityStats: boolean = true;
+  private firstPersonCamera: BABYLON.UniversalCamera | null = null;
+  private firstPersonTargetId: number | null = null;
 
   // Entity 3D preview system
   private previewMeshes: Map<string, BABYLON.Mesh> = new Map();
@@ -275,6 +278,8 @@ export class BabylonRenderer {
     fpsText.text = "0 FPS";
     fpsText.color = "#0ea5e9";
     fpsText.fontSize = 18;
+    fpsText.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+    fpsText.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
     fpsText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
     fpsText.textVerticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
     fpsText.paddingTop = "10px";
@@ -322,6 +327,12 @@ export class BabylonRenderer {
           const cell = GE.world.terrain.getPixelCell(px, py);
           if (cell && cell.terrain === TerrainType.GRASS) {
             GE.world.flora.createPlant(GE.world.flora.plantsDef.bush, px, py);
+          }
+          break;
+        case 'tree':
+          const treeCell = GE.world.terrain.getPixelCell(px, py);
+          if (treeCell && treeCell.terrain === TerrainType.GRASS) {
+            GE.world.flora.createPlant(GE.world.flora.plantsDef.tree, px, py);
           }
           break;
       }
@@ -446,8 +457,9 @@ export class BabylonRenderer {
 
     // 2-column grid for Fauna / Flora entity previews
     const entityGrid = new GUI.Grid();
-    entityGrid.addColumnDefinition(0.5);
-    entityGrid.addColumnDefinition(0.5);
+    entityGrid.addColumnDefinition(0.33);
+    entityGrid.addColumnDefinition(0.33);
+    entityGrid.addColumnDefinition(0.34);
     entityGrid.addRowDefinition(24, true);
     entityGrid.addRowDefinition(100, true);
     entityGrid.height = "130px";
@@ -459,11 +471,17 @@ export class BabylonRenderer {
     faunaLabel.fontFamily = "Roboto, Arial, sans-serif";
     entityGrid.addControl(faunaLabel, 0, 0);
 
-    const floraLabel = new GUI.TextBlock("floraLabel", "Flora");
+    const floraLabel = new GUI.TextBlock("floraLabel", "Bush");
     floraLabel.color = "#cbd5e1";
     floraLabel.fontSize = 12;
     floraLabel.fontFamily = "Roboto, Arial, sans-serif";
     entityGrid.addControl(floraLabel, 0, 1);
+
+    const treeLabel = new GUI.TextBlock("treeLabel", "Tree");
+    treeLabel.color = "#cbd5e1";
+    treeLabel.fontSize = 12;
+    treeLabel.fontFamily = "Roboto, Arial, sans-serif";
+    entityGrid.addControl(treeLabel, 0, 2);
 
     // Fauna preview button (Ant)
     const faunaBtn = new GUI.Button("faunaPreviewBtn");
@@ -498,6 +516,23 @@ export class BabylonRenderer {
     floraBtn.onPointerUpObservable.add(() => selectBrush('plant', floraBtn, true));
     entityGrid.addControl(floraBtn, 1, 1);
     this.previewImages.set("Bush", floraImage);
+
+    // Flora preview button (Tree)
+    const treeBtn = new GUI.Button("treePreviewBtn");
+    treeBtn.thickness = 2;
+    treeBtn.color = "#334155";
+    treeBtn.background = "#1e293b";
+    treeBtn.cornerRadius = 6;
+    treeBtn.paddingLeft = "4px";
+    treeBtn.paddingRight = "4px";
+    treeBtn.paddingTop = "2px";
+    treeBtn.paddingBottom = "2px";
+    const treeImage = new GUI.Image("treePreviewImg", "");
+    treeImage.stretch = GUI.Image.STRETCH_UNIFORM;
+    treeBtn.addControl(treeImage);
+    treeBtn.onPointerUpObservable.add(() => selectBrush('tree', treeBtn, true));
+    entityGrid.addControl(treeBtn, 1, 2);
+    this.previewImages.set("Tree", treeImage);
 
     brushesPanel.addControl(entityGrid);
 
@@ -548,7 +583,40 @@ export class BabylonRenderer {
     brushesPanel.addControl(disableBrushBtn);
 
     // Live Options Content
+    liveOptionsPanel.addControl(createHeader("Settings"));
+    
+    const statsPanel = new GUI.StackPanel();
+    statsPanel.isVertical = false;
+    statsPanel.height = "30px";
+    statsPanel.paddingBottom = "10px";
+    statsPanel.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+
+    const statsCheckbox = new GUI.Checkbox();
+    statsCheckbox.width = "20px";
+    statsCheckbox.height = "20px";
+    statsCheckbox.isChecked = this.showEntityStats;
+    statsCheckbox.color = "#0ea5e9";
+    statsCheckbox.onIsCheckedChangedObservable.add((value) => {
+      this.showEntityStats = value;
+      for (const [, box] of this.creatureStatsMap) {
+         box.isVisible = value;
+      }
+    });
+
+    const statsLabel = new GUI.TextBlock();
+    statsLabel.text = "Show Entity Stats";
+    statsLabel.color = "white";
+    statsLabel.width = "180px";
+    statsLabel.fontSize = 14;
+    statsLabel.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+    statsLabel.paddingLeft = "10px";
+
+    statsPanel.addControl(statsCheckbox);
+    statsPanel.addControl(statsLabel);
+    liveOptionsPanel.addControl(statsPanel);
+
     liveOptionsPanel.addControl(createHeader("Actions"));
+    liveOptionsPanel.addControl(createButton("Toggle 1st Person", () => this.toggleFirstPersonCamera()));
     liveOptionsPanel.addControl(createButton("Pool (Spawn 10)", () => {
       const { world } = GE;
       Array.from({ length: 1000 }).forEach(() => world.flora.createPlant());
@@ -560,6 +628,28 @@ export class BabylonRenderer {
     liveOptionsPanel.addControl(createButton("Generate Map", () => {
       GE.world.terrain.generateMap();
     }));
+  }
+
+  private toggleFirstPersonCamera() {
+    if (this.firstPersonTargetId) {
+      // Disable 1st person
+      this.firstPersonTargetId = null;
+      this.scene.activeCamera = (GE as any).camera;
+      if (this.firstPersonCamera) {
+        this.firstPersonCamera.dispose();
+        this.firstPersonCamera = null;
+      }
+    } else {
+      // Enable 1st person
+      const creatures = GE.world.fauna.creatures.filter((c: any) => c.lifeEnergy > 0);
+      if (creatures.length === 0) return;
+      const randomCreature = creatures[Math.floor(Math.random() * creatures.length)];
+      this.firstPersonTargetId = randomCreature.id;
+      
+      this.firstPersonCamera = new BABYLON.UniversalCamera("firstPersonCam", new BABYLON.Vector3(0, 0, 0), this.scene);
+      this.firstPersonCamera.minZ = 0.1;
+      this.scene.activeCamera = this.firstPersonCamera;
+    }
   }
 
   private initEntityPreviews() {
@@ -601,6 +691,32 @@ export class BabylonRenderer {
     this.scene.customRenderTargets.push(bushRTT);
     this.previewRTTs.set("Bush", bushRTT);
 
+    // --- Tree preview ---
+    const treePos = new BABYLON.Vector3(-60, -1000, 0);
+    const treePreview = this.createPreviewBushMesh(treePos, PREVIEW_LAYER);
+    treePreview.scaling.setAll(1.5); // make it look bigger in preview
+    this.previewMeshes.set("Tree", treePreview);
+    allPreviewMeshes.push(treePreview);
+
+    const treeTarget = new BABYLON.Vector3(treePos.x, treePos.y + 2, treePos.z);
+    const treeCam = new BABYLON.ArcRotateCamera(
+      "treePreviewCam", -Math.PI / 4, Math.PI / 3, 15, treeTarget, this.scene
+    );
+    treeCam.mode = BABYLON.Camera.ORTHOGRAPHIC_CAMERA;
+    const treeOrthoSize = 5.5;
+    treeCam.orthoLeft = -treeOrthoSize;
+    treeCam.orthoRight = treeOrthoSize;
+    treeCam.orthoTop = treeOrthoSize;
+    treeCam.orthoBottom = -treeOrthoSize;
+    treeCam.layerMask = PREVIEW_LAYER;
+
+    const treeRTT = new BABYLON.RenderTargetTexture("treeRTT", PREVIEW_SIZE, this.scene);
+    treeRTT.activeCamera = treeCam;
+    treeRTT.clearColor = new BABYLON.Color4(0.059, 0.090, 0.165, 1);
+    treeRTT.renderList!.push(treePreview);
+    this.scene.customRenderTargets.push(treeRTT);
+    this.previewRTTs.set("Tree", treeRTT);
+
     // --- Ant preview ---
     const antPos = new BABYLON.Vector3(30, -1000, 0);
     const antPreview = this.createPreviewAntMesh(antPos, PREVIEW_LAYER);
@@ -630,7 +746,7 @@ export class BabylonRenderer {
     previewLight.includedOnlyMeshes = allPreviewMeshes;
 
     // Offscreen canvases for RTT -> GUI.Image transfer
-    for (const name of ["Bush", "Ant"]) {
+    for (const name of ["Bush", "Tree", "Ant"]) {
       const canvas = document.createElement("canvas");
       canvas.width = PREVIEW_SIZE;
       canvas.height = PREVIEW_SIZE;
@@ -937,49 +1053,54 @@ export class BabylonRenderer {
     floraWoodMat.roughness = 0.9;
     floraWoodMat.environmentIntensity = 0.2;
 
-    const parts: BABYLON.Mesh[] = [];
+    const createFloraMesh = (name: string) => {
+      const parts: BABYLON.Mesh[] = [];
 
-    // Branches (Brown)
-    const trunk = BABYLON.MeshBuilder.CreateCylinder("trunk", { height: 1.8, diameterTop: 0.4, diameterBottom: 0.6 }, this.scene);
-    trunk.position = new BABYLON.Vector3(0, 0.9, 0);
-    trunk.material = floraWoodMat;
-    parts.push(trunk);
+      // Branches (Brown)
+      const trunk = BABYLON.MeshBuilder.CreateCylinder(name + "_trunk", { height: 1.8, diameterTop: 0.4, diameterBottom: 0.6 }, this.scene);
+      trunk.position = new BABYLON.Vector3(0, 0.9, 0);
+      trunk.material = floraWoodMat;
+      parts.push(trunk);
 
-    const br1 = BABYLON.MeshBuilder.CreateCylinder("br1", { height: 1.5, diameterTop: 0.2, diameterBottom: 0.3 }, this.scene);
-    br1.position = new BABYLON.Vector3(0.5, 1.6, 0.2);
-    br1.rotation = new BABYLON.Vector3(0.3, 0, -0.5);
-    br1.material = floraWoodMat;
-    parts.push(br1);
+      const br1 = BABYLON.MeshBuilder.CreateCylinder(name + "_br1", { height: 1.5, diameterTop: 0.2, diameterBottom: 0.3 }, this.scene);
+      br1.position = new BABYLON.Vector3(0.5, 1.6, 0.2);
+      br1.rotation = new BABYLON.Vector3(0.3, 0, -0.5);
+      br1.material = floraWoodMat;
+      parts.push(br1);
 
-    const br2 = BABYLON.MeshBuilder.CreateCylinder("br2", { height: 1.4, diameterTop: 0.2, diameterBottom: 0.3 }, this.scene);
-    br2.position = new BABYLON.Vector3(-0.5, 1.5, -0.3);
-    br2.rotation = new BABYLON.Vector3(-0.3, 0, 0.4);
-    br2.material = floraWoodMat;
-    parts.push(br2);
+      const br2 = BABYLON.MeshBuilder.CreateCylinder(name + "_br2", { height: 1.4, diameterTop: 0.2, diameterBottom: 0.3 }, this.scene);
+      br2.position = new BABYLON.Vector3(-0.5, 1.5, -0.3);
+      br2.rotation = new BABYLON.Vector3(-0.3, 0, 0.4);
+      br2.material = floraWoodMat;
+      parts.push(br2);
 
-    // Leaves (Green)
-    const b1 = BABYLON.MeshBuilder.CreatePolyhedron("b1", { type: 1, size: 1.2 }, this.scene);
-    b1.position = new BABYLON.Vector3(0, 2.6, 0);
-    const b2 = BABYLON.MeshBuilder.CreatePolyhedron("b2", { type: 1, size: 0.9 }, this.scene);
-    b2.position = new BABYLON.Vector3(1.2, 2.3, 0.6);
-    const b3 = BABYLON.MeshBuilder.CreatePolyhedron("b3", { type: 1, size: 1.0 }, this.scene);
-    b3.position = new BABYLON.Vector3(-1.1, 2.2, -0.8);
-    const b4 = BABYLON.MeshBuilder.CreatePolyhedron("b4", { type: 1, size: 0.8 }, this.scene);
-    b4.position = new BABYLON.Vector3(0.7, 2.0, -1.2);
-    const b5 = BABYLON.MeshBuilder.CreatePolyhedron("b5", { type: 1, size: 0.9 }, this.scene);
-    b5.position = new BABYLON.Vector3(-0.8, 2.1, 1.0);
+      // Leaves (Green)
+      const b1 = BABYLON.MeshBuilder.CreatePolyhedron(name + "_b1", { type: 1, size: 1.2 }, this.scene);
+      b1.position = new BABYLON.Vector3(0, 2.6, 0);
+      const b2 = BABYLON.MeshBuilder.CreatePolyhedron(name + "_b2", { type: 1, size: 0.9 }, this.scene);
+      b2.position = new BABYLON.Vector3(1.2, 2.3, 0.6);
+      const b3 = BABYLON.MeshBuilder.CreatePolyhedron(name + "_b3", { type: 1, size: 1.0 }, this.scene);
+      b3.position = new BABYLON.Vector3(-1.1, 2.2, -0.8);
+      const b4 = BABYLON.MeshBuilder.CreatePolyhedron(name + "_b4", { type: 1, size: 0.8 }, this.scene);
+      b4.position = new BABYLON.Vector3(0.7, 2.0, -1.2);
+      const b5 = BABYLON.MeshBuilder.CreatePolyhedron(name + "_b5", { type: 1, size: 0.9 }, this.scene);
+      b5.position = new BABYLON.Vector3(-0.8, 2.1, 1.0);
 
-    for (const leaf of [b1, b2, b3, b4, b5]) {
-      leaf.material = floraLeafMat;
-      parts.push(leaf);
-    }
+      for (const leaf of [b1, b2, b3, b4, b5]) {
+        leaf.material = floraLeafMat;
+        parts.push(leaf);
+      }
 
-    // Merge all meshes. Set subdivideWithSubMeshes=true and multiMultiMaterials=true to preserve textures!
-    const bushMesh = BABYLON.Mesh.MergeMeshes(parts, true, true, undefined, true, true) as BABYLON.Mesh;
-    bushMesh.isVisible = false;
-    this.shadowGenerator.addShadowCaster(bushMesh, true);
-    this.entityBases.set("Bush", bushMesh);
-    this.entityInstances.set("Bush", []);
+      // Merge all meshes. Set subdivideWithSubMeshes=true and multiMultiMaterials=true to preserve textures!
+      const mesh = BABYLON.Mesh.MergeMeshes(parts, true, true, undefined, true, true) as BABYLON.Mesh;
+      mesh.isVisible = false;
+      this.shadowGenerator.addShadowCaster(mesh, true);
+      this.entityBases.set(name, mesh);
+      this.entityInstances.set(name, []);
+    };
+
+    createFloraMesh("Bush");
+    createFloraMesh("Tree");
 
     // --- Fauna base: Ant-like segmented body ---
     const head = BABYLON.MeshBuilder.CreateSphere("head", { diameter: 2.5 }, this.scene);
@@ -1281,55 +1402,107 @@ export class BabylonRenderer {
       }
     }
 
-    // --- Flora ---
-    const plants = GE.world.flora.plants;
-    if (isFirstSync) console.log('[DEBUG] sync() - Flora length = ' + plants.length);
+    // --- Viewport Culling Bounds ---
+    let renderMinX = -Infinity;
+    let renderMaxX = Infinity;
+    let renderMinZ = -Infinity;
+    let renderMaxZ = Infinity;
 
-    const plantsByType = new Map<string, any[]>();
-    for (const plant of plants) {
-      if (plant.lifeEnergy <= 0) continue; // Dead flora doesn't render
-      const type = plant.resourceName;
-      if (!plantsByType.has(type)) plantsByType.set(type, []);
-      plantsByType.get(type)!.push(plant);
+    if (this.scene.activeCamera) {
+      if (this.firstPersonTargetId !== null && this.firstPersonCamera) {
+        const radius = 300;
+        renderMinX = this.firstPersonCamera.position.x - radius;
+        renderMaxX = this.firstPersonCamera.position.x + radius;
+        renderMinZ = this.firstPersonCamera.position.z - radius;
+        renderMaxZ = this.firstPersonCamera.position.z + radius;
+      } else {
+        const cam = this.scene.activeCamera as BABYLON.ArcRotateCamera;
+        if (cam.target) {
+          // Adjust culling distance based on camera zoom (radius)
+          // Add a generous buffer (e.g., +200) to avoid pop-in at the edges
+          const viewDist = Math.max(100, cam.radius * 1.5) + 200; 
+          renderMinX = cam.target.x - viewDist;
+          renderMaxX = cam.target.x + viewDist;
+          renderMinZ = cam.target.z - viewDist;
+          renderMaxZ = cam.target.z + viewDist;
+        }
+      }
     }
 
-    for (const [type, typePlants] of plantsByType) {
+    // --- Flora ---
+    const visiblePlantsAll = GE.world.flora.getPlantsInBounds(renderMinX, renderMaxX, renderMinZ, renderMaxZ);
+    if (isFirstSync) console.log('[DEBUG] sync() - Flora visible length = ' + visiblePlantsAll.length);
+
+    const plantsByType = new Map<string, any[]>();
+    for (let i = 0; i < visiblePlantsAll.length; i++) {
+      const plant = visiblePlantsAll[i];
+      if (plant.lifeEnergy <= 0) continue; // Dead flora doesn't render
+      
+      if (plant.position.x >= renderMinX && plant.position.x <= renderMaxX &&
+          plant.position.y >= renderMinZ && plant.position.y <= renderMaxZ) {
+          
+        const type = plant.resourceName;
+        let list = plantsByType.get(type);
+        if (!list) {
+          list = [];
+          plantsByType.set(type, list);
+        }
+        list.push(plant);
+      }
+    }
+
+    // First, hide all flora bases and shadows. They will be unhidden if they have active plants.
+    for (const [type, base] of this.entityBases) {
+      if (type === "Bush" || type === "Tree") { // Flora types
+        base.isVisible = false;
+        const shadowBase = this.thinShadowBases.get(type);
+        if (shadowBase) shadowBase.isVisible = false;
+      }
+    }
+
+    for (const [type, visiblePlants] of plantsByType) {
       const base = this.entityBases.get(type);
       if (!base) continue;
 
+      let currentIdSum = 0;
+      for (let i = 0; i < visiblePlants.length; i++) {
+         currentIdSum += visiblePlants[i].id;
+      }
+
+      base.isVisible = visiblePlants.length > 0;
+      base.alwaysSelectAsActiveMesh = true;
+
       let shadowBase = this.thinShadowBases.get(type);
       if (!shadowBase) {
-        shadowBase = this.blobShadowBase.clone(type + "_thinShadowBase");
+        shadowBase = BABYLON.MeshBuilder.CreatePlane(type + "_thinShadowBase", { size: 4 }, this.scene);
+        shadowBase.rotation.x = Math.PI / 2;
+        shadowBase.material = this.blobShadowBase.material;
         this.thinShadowBases.set(type, shadowBase);
       }
 
-      // For Thin Instances, the base mesh MUST be visible to render the instances.
-      // We toggle it to false if there are 0 plants to prevent drawing the base mesh itself.
-      base.isVisible = typePlants.length > 0;
-      base.alwaysSelectAsActiveMesh = true; // Prevents the instanced batch from being frustum-culled
-
-      shadowBase.isVisible = typePlants.length > 0;
+      shadowBase.isVisible = visiblePlants.length > 0;
       shadowBase.alwaysSelectAsActiveMesh = true;
 
-      // We use a property to cache count so we only rebuild the float array when a plant spawns/dies
       const lastCount = (base as any)._lastThinCount;
+      const lastIdSum = (base as any)._lastThinIdSum;
 
-      if (lastCount !== typePlants.length) {
+      if (lastCount !== visiblePlants.length || lastIdSum !== currentIdSum) {
         if (lastCount === undefined) {
-          this.shadowGenerator.addShadowCaster(base, true); // true = include thin instances
+          this.shadowGenerator.addShadowCaster(base, true);
         }
 
-        const buffer = new Float32Array(typePlants.length * 16);
-        const shadowBuffer = new Float32Array(typePlants.length * 16);
+        const buffer = new Float32Array(visiblePlants.length * 16);
+        const shadowBuffer = new Float32Array(visiblePlants.length * 16);
 
         const rotAxis = BABYLON.Vector3.Up();
         const quatIdentity = BABYLON.Quaternion.Identity();
 
-        for (let i = 0; i < typePlants.length; i++) {
-          const plant = typePlants[i];
+        for (let i = 0; i < visiblePlants.length; i++) {
+          const plant = visiblePlants[i];
           const baseEnergy = typeof plant.getInitialEnergy === "function" ? plant.getInitialEnergy() : 200;
           let scale = Math.max(0.3, Math.min(3.0, baseEnergy / 80));
           if (type === "Bush") scale *= 1.4;
+          if (type === "Tree") scale *= 2.5;
 
           const rotY = plant.id * 1.618;
 
@@ -1341,16 +1514,17 @@ export class BabylonRenderer {
           matrix.copyToArray(buffer, i * 16);
 
           const shadowMatrix = BABYLON.Matrix.Compose(
-            new BABYLON.Vector3(scale * 0.7, scale * 0.7, scale * 0.7),
+            new BABYLON.Vector3(scale * 0.25, scale * 0.25, scale * 0.25),
             quatIdentity,
-            new BABYLON.Vector3(plant.position.x, 0.05, plant.position.y)
+            new BABYLON.Vector3(plant.position.x, plant.position.y, -0.05)
           );
           shadowMatrix.copyToArray(shadowBuffer, i * 16);
         }
 
         base.thinInstanceSetBuffer("matrix", buffer, 16, false);
         shadowBase.thinInstanceSetBuffer("matrix", shadowBuffer, 16, false);
-        (base as any)._lastThinCount = typePlants.length;
+        (base as any)._lastThinCount = visiblePlants.length;
+        (base as any)._lastThinIdSum = currentIdSum;
       }
     }
 
@@ -1402,6 +1576,27 @@ export class BabylonRenderer {
       typeCreatures.forEach((creature: any, index: number) => {
         const inst = instances![index];
         const shdInst = shadowInstances![index];
+        
+        // Fast viewport check for creatures
+        const isVisible = (creature.position.x >= renderMinX && creature.position.x <= renderMaxX &&
+                          creature.position.y >= renderMinZ && creature.position.y <= renderMaxZ) ||
+                          (this.firstPersonTargetId === creature.id);
+                          
+        if (!isVisible && creature.lifeEnergy > 0) {
+           // Basic position update so it stays correct when it enters view
+           inst.position.x = creature.position.x;
+           inst.position.z = creature.position.y;
+           inst.isVisible = false;
+           shdInst.isVisible = false;
+           
+           // If UI is tracked, we can skip updating UI or hide it
+           const statBox = this.creatureStatsMap.get(creature.id);
+           if (statBox) statBox.isVisible = false;
+           
+           aliveCreatureIds.add(creature.id);
+           return;
+        }
+
         inst.position.x = creature.position.x;
         inst.position.z = creature.position.y;
 
@@ -1444,10 +1639,18 @@ export class BabylonRenderer {
           shdInst.position.y = 0.05;
           shdInst.scaling.setAll(0.6); // Contact shadow matches bug body
 
-          const dx = creature.target.x - creature.position.x;
-          const MathDz = creature.target.y - creature.position.y;
-          if (Math.abs(dx) > 0.1 || Math.abs(MathDz) > 0.1) {
-            inst.rotation.y = Math.atan2(dx, MathDz);
+          const vx = (creature as any).velocity?.x || (creature.target.x - creature.position.x);
+          const vz = (creature as any).velocity?.y || (creature.target.y - creature.position.y);
+          if (Math.abs(vx) > 0.01 || Math.abs(vz) > 0.01) {
+            inst.rotation.y = Math.atan2(vx, vz);
+          }
+
+          if (this.firstPersonTargetId === creature.id && this.firstPersonCamera) {
+            this.firstPersonCamera.position.x = inst.position.x;
+            this.firstPersonCamera.position.y = inst.position.y + 2; // Eye level
+            this.firstPersonCamera.position.z = inst.position.z;
+            this.firstPersonCamera.rotation.y = inst.rotation.y;
+            this.firstPersonCamera.rotation.x = 0; // look straight
           }
 
           const walkCycle = (creature.position.x + creature.position.y) * 0.4;
@@ -1486,6 +1689,8 @@ export class BabylonRenderer {
           if (statBox.linkedMesh !== inst) {
             statBox.linkWithMesh(inst);
           }
+          
+          statBox.isVisible = this.showEntityStats;
 
           const newText = `ID: ${creature.id}\nEng: ${Math.round(creature.lifeEnergy)}\nAge: ${Math.round(creature.age)}\nAct: ${creature.currentBehavior?.name || 'idle'}`;
           const textBlock = statBox.children[0] as GUI.TextBlock;
@@ -1504,6 +1709,11 @@ export class BabylonRenderer {
         this.creatureStatsMap.delete(id);
       }
     }
+    
+    if (this.firstPersonTargetId !== null && !aliveCreatureIds.has(this.firstPersonTargetId)) {
+      this.toggleFirstPersonCamera();
+    }
+    
     if (isFirstSync) console.log('[DEBUG] sync() - Completed successfully');
   }
 

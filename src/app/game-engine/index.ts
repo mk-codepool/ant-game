@@ -104,12 +104,12 @@ export class GameEngine {
 
   everySmallCycle = () => {
     this.world.doSmallCycle();
-    // Autosave on every small cycle — fire and forget, won't block the game loop
-    this.saveService.autosave(this.world);
   }
 
   everyBigCycle = () => {
     this.world.doBigCycle();
+    // Autosave on every big cycle — less frequent to prevent 1s lag spikes
+    this.saveService.autosave(this.world);
   }
 
   everyEpicCycle = () => {
