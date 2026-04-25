@@ -27,6 +27,8 @@ export interface BehaviorContext {
   };
   terrain: WorldMapEngine;
   getNearbyPlants?: (x: number, y: number, radius: number) => BaseFlora[];
+  getNearbyCreatures?: (x: number, y: number, radius: number) => BaseFauna[];
+  nearbyPlants?: BaseFlora[];
 }
 
 /**
@@ -58,9 +60,9 @@ export class SurviveGoal implements Goal {
   evaluate(creature: BaseFauna, context: BehaviorContext): Behavior {
     // Determine the plants to consider based on vision
     const searchRadius = creature.vision.range;
-    const nearbyPlants = context.getNearbyPlants 
+    const nearbyPlants = context.nearbyPlants || (context.getNearbyPlants
       ? context.getNearbyPlants(creature.position.x, creature.position.y, searchRadius)
-      : context.plants;
+      : context.plants);
 
     // Check if we can eat an adjacent plant
     const adjacentPlant = this.findAdjacentPlant(creature, nearbyPlants);
@@ -82,15 +84,14 @@ export class SurviveGoal implements Goal {
 
   private findAdjacentPlant(creature: BaseFauna, plants: BaseFlora[]): BaseFlora | null {
     const adjacentDistance = 15; // Close enough to eat
+    const adjacentDistanceSquared = adjacentDistance * adjacentDistance;
 
     for (const plant of plants) {
       if (plant.lifeEnergy <= 0) continue;
 
       const dx = plant.position.x - creature.position.x;
       const dy = plant.position.y - creature.position.y;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-
-      if (distance <= adjacentDistance) {
+      if (dx * dx + dy * dy <= adjacentDistanceSquared) {
         return plant;
       }
     }
@@ -106,9 +107,9 @@ export class SeekPlantBehavior implements Behavior {
   name = BehaviourName.SeekPlant;
 
   execute(creature: BaseFauna, context: BehaviorContext, dt: number): void {
-    const nearbyPlants = context.getNearbyPlants
+    const nearbyPlants = context.nearbyPlants || (context.getNearbyPlants
       ? context.getNearbyPlants(creature.position.x, creature.position.y, creature.vision.range)
-      : context.plants;
+      : context.plants);
 
     const visiblePlants = creature.vision.findVisiblePlants(nearbyPlants, creature.position);
     const nearestPlant = this.findNearestPlant(creature.position, visiblePlants);
@@ -127,10 +128,10 @@ export class SeekPlantBehavior implements Behavior {
     for (const plant of plants) {
       const dx = plant.position.x - position.x;
       const dy = plant.position.y - position.y;
-      const distance = Math.sqrt(dx * dx + dy * dy);
+      const distanceSquared = dx * dx + dy * dy;
 
-      if (distance < minDistance) {
-        minDistance = distance;
+      if (distanceSquared < minDistance) {
+        minDistance = distanceSquared;
         nearest = plant;
       }
     }
@@ -147,18 +148,17 @@ export class EatBehavior implements Behavior {
 
   execute(creature: BaseFauna, context: BehaviorContext, dt: number): void {
     const adjacentDistance = 15;
-    const nearbyPlants = context.getNearbyPlants
+    const nearbyPlants = context.nearbyPlants || (context.getNearbyPlants
       ? context.getNearbyPlants(creature.position.x, creature.position.y, adjacentDistance)
-      : context.plants;
+      : context.plants);
+    const adjacentDistanceSquared = adjacentDistance * adjacentDistance;
 
     for (const plant of nearbyPlants) {
       if (plant.lifeEnergy <= 0) continue;
 
       const dx = plant.position.x - creature.position.x;
       const dy = plant.position.y - creature.position.y;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-
-      if (distance <= adjacentDistance) {
+      if (dx * dx + dy * dy <= adjacentDistanceSquared) {
         creature.eat(plant);
         break; // Only eat one plant per frame
       }

@@ -21,8 +21,10 @@ export abstract class BaseFauna extends Life {
   currentBehavior: Behavior | null = null;
   // Cache of local plants to prevent checking 8,000+ plants per frame for collisions
   localPlants: BaseFlora[] = [];
+  localCreatures: BaseFauna[] = [];
   private dtAccumulator = 0;
   private thinkTimer = Math.random(); // Start with random offset to distribute load across frames
+  lodState: { nearAccumulator?: number; farAccumulator?: number } = {};
 
   velocity: Vector2 = { x: 0, y: 0 };
   turnSpeed: number = 3.0;
@@ -127,8 +129,12 @@ export abstract class BaseFauna extends Life {
       }
     }
 
-    // Soft sliding collision with other creatures
-    for (const other of context.creatures) {
+    const nearbyCreatures = context.getNearbyCreatures
+      ? context.getNearbyCreatures(nextX, nextY, this.hitboxRadius * 4)
+      : context.creatures;
+
+    // Soft sliding collision with nearby creatures only.
+    for (const other of nearbyCreatures) {
       if (other === this || other.isDead()) continue;
       const odx = nextX - other.position.x;
       const ody = nextY - other.position.y;
@@ -159,18 +165,19 @@ export abstract class BaseFauna extends Life {
   think = (context: BehaviorContext): void => {
     if (this.isDead()) return;
 
-    // Cache nearby plants for collision (radius e.g., 30)
-    // Doing this less frequently saves millions of collision array loops every frame
-    this.localPlants = [];
-    const nearby = context.getNearbyPlants 
-      ? context.getNearbyPlants(this.position.x, this.position.y, 30)
+    const nearbyPlants = context.getNearbyPlants
+      ? context.getNearbyPlants(this.position.x, this.position.y, this.vision.range)
       : context.plants;
-    for (const plant of nearby) {
+
+    // Cache nearby plants for collision. Doing this less frequently saves millions
+    // of collision checks while behavior uses the wider perception result below.
+    this.localPlants = [];
+    const collisionRadiusSquared = 30 * 30;
+    for (const plant of nearbyPlants) {
       if (plant.lifeEnergy <= 0) continue;
-      // Using quick manhattan distance check first for extreme speed
-      const dx = Math.abs(plant.position.x - this.position.x);
-      const dy = Math.abs(plant.position.y - this.position.y);
-      if (dx < 30 && dy < 30) {
+      const dx = plant.position.x - this.position.x;
+      const dy = plant.position.y - this.position.y;
+      if (dx * dx + dy * dy <= collisionRadiusSquared) {
         this.localPlants.push(plant);
       }
     }
@@ -184,11 +191,17 @@ export abstract class BaseFauna extends Life {
     }
 
     if (this.currentGoal) {
-      this.currentBehavior = this.currentGoal.evaluate(this, context);
+      this.currentBehavior = this.currentGoal.evaluate(this, {
+        ...context,
+        nearbyPlants,
+      });
     }
 
     if (this.currentBehavior) {
-      this.currentBehavior.execute(this, context, this.dtAccumulator);
+      this.currentBehavior.execute(this, {
+        ...context,
+        nearbyPlants,
+      }, this.dtAccumulator);
     }
     
     // Reset accumulated delta time since we just evaluated

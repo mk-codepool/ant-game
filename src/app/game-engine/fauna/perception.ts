@@ -9,11 +9,15 @@ export class Vision {
   range: number;
   angle: number; // Field of view angle in radians
   direction: Vector2;
+  private rangeSquared: number;
+  private cosHalfAngle: number;
 
   constructor(range = 150, angleInDegrees = 120) {
     this.range = range;
     this.angle = (angleInDegrees * Math.PI) / 180; // Convert to radians
     this.direction = { x: 1, y: 0 }; // Default facing right
+    this.rangeSquared = range * range;
+    this.cosHalfAngle = Math.cos(this.angle / 2);
   }
 
   /**
@@ -23,10 +27,8 @@ export class Vision {
     const magnitude = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y);
     if (magnitude > 0.01) {
       // Only update if there's significant movement
-      this.direction = {
-        x: velocity.x / magnitude,
-        y: velocity.y / magnitude,
-      };
+      this.direction.x = velocity.x / magnitude;
+      this.direction.y = velocity.y / magnitude;
     }
   }
 
@@ -34,41 +36,32 @@ export class Vision {
    * Checks if a target position is within the vision cone
    */
   canSee(target: Vector2, position: Vector2): boolean {
-    // Vector from position to target
-    const toTarget = {
-      x: target.x - position.x,
-      y: target.y - position.y,
-    };
-
-    // Distance check
-    const distance = Math.sqrt(toTarget.x * toTarget.x + toTarget.y * toTarget.y);
-    if (distance > this.range || distance < 0.01) {
+    const dx = target.x - position.x;
+    const dy = target.y - position.y;
+    const distanceSquared = dx * dx + dy * dy;
+    if (distanceSquared > this.rangeSquared || distanceSquared < 0.0001) {
       return false;
     }
 
-    // Normalize the vector to target
-    const normalizedToTarget = {
-      x: toTarget.x / distance,
-      y: toTarget.y / distance,
-    };
+    const dot = (this.direction.x * dx) + (this.direction.y * dy);
+    if (dot <= 0) return false;
 
-    // Calculate angle between direction and target using dot product
-    const dotProduct = this.direction.x * normalizedToTarget.x + this.direction.y * normalizedToTarget.y;
-    const angleToTarget = Math.acos(Math.max(-1, Math.min(1, dotProduct)));
-
-    // Check if target is within the cone angle (half-angle on each side)
-    return angleToTarget <= this.angle / 2;
+    return dot * dot >= distanceSquared * this.cosHalfAngle * this.cosHalfAngle;
   }
 
   /**
    * Finds all plants visible to the creature
    */
   findVisiblePlants(plants: BaseFlora[], position: Vector2): BaseFlora[] {
-    return plants.filter(plant => {
+    const visible: BaseFlora[] = [];
+    for (const plant of plants) {
       // Don't see dead/consumed plants
-      if (plant.lifeEnergy <= 0) return false;
-      return this.canSee(plant.position, position);
-    });
+      if (plant.lifeEnergy <= 0) continue;
+      if (this.canSee(plant.position, position)) {
+        visible.push(plant);
+      }
+    }
+    return visible;
   }
 
   /**

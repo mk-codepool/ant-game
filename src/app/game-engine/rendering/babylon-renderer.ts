@@ -18,6 +18,13 @@ interface BiomePalette {
   edge: [number, number, number];
 }
 
+interface ThinInstanceBuffers {
+  matrix: Float32Array;
+  shadowMatrix: Float32Array;
+  color: Float32Array;
+  capacity: number;
+}
+
 const BIOME_PALETTES: Record<string, BiomePalette> = {
   [TerrainType.WATER]: {
     low: [8, 56, 120],    // deep ocean blue
@@ -198,9 +205,10 @@ export class BabylonRenderer {
   private brushSize: number = 20;
   private creativePanel!: GUI.Rectangle;
   private shadowGenerator!: BABYLON.CascadedShadowGenerator;
-  private showEntityStats: boolean = true;
+  private showEntityStats: boolean = false;
   private firstPersonCamera: BABYLON.UniversalCamera | null = null;
   private firstPersonTargetId: number | null = null;
+  private faunaThinBuffers: Map<string, ThinInstanceBuffers> = new Map();
 
   // Entity 3D preview system
   private previewMeshes: Map<string, BABYLON.Mesh> = new Map();
@@ -308,6 +316,13 @@ export class BabylonRenderer {
           TerrainType.WATER;
 
       GE.world.terrain.paintBiomeCircle(x, y, this.brushSize, terrain);
+      GE.enqueueSimulationCommand({
+        type: 'paintTerrain',
+        x,
+        y,
+        radius: this.brushSize,
+        terrain,
+      });
 
       // Remove plants that are overwritten by Water or Sand brushing
       GE.world.flora.clearInvalidPlants(GE.world.terrain, x, y, this.brushSize);
@@ -322,17 +337,20 @@ export class BabylonRenderer {
       switch (this.activeBrush) {
         case 'creature':
           GE.world.fauna.createCreature(GE.world.fauna.creaturesDef.ant, px, py);
+          GE.enqueueSimulationCommand({ type: 'spawnCreature', species: 'ant', x: px, y: py });
           break;
         case 'plant':
           const cell = GE.world.terrain.getPixelCell(px, py);
           if (cell && cell.terrain === TerrainType.GRASS) {
             GE.world.flora.createPlant(GE.world.flora.plantsDef.bush, px, py);
+            GE.enqueueSimulationCommand({ type: 'spawnPlant', species: 'bush', x: px, y: py });
           }
           break;
         case 'tree':
           const treeCell = GE.world.terrain.getPixelCell(px, py);
           if (treeCell && treeCell.terrain === TerrainType.GRASS) {
             GE.world.flora.createPlant(GE.world.flora.plantsDef.tree, px, py);
+            GE.enqueueSimulationCommand({ type: 'spawnPlant', species: 'tree', x: px, y: py });
           }
           break;
       }
@@ -760,7 +778,7 @@ export class BabylonRenderer {
         mesh.rotation.y += dt * 0.5;
       }
       this.previewFrameCounter++;
-      if (this.previewFrameCounter >= 3 && this.previewFrameCounter % 3 === 0) {
+      if (this.previewFrameCounter === 1 || this.previewFrameCounter % 120 === 0) {
         this.updatePreviewImages();
       }
     });
@@ -1429,6 +1447,18 @@ export class BabylonRenderer {
       }
     }
 
+    if (Number.isFinite(renderMinX) && Number.isFinite(renderMaxX) &&
+        Number.isFinite(renderMinZ) && Number.isFinite(renderMaxZ)) {
+      GE.setCameraBounds({
+        minX: renderMinX,
+        maxX: renderMaxX,
+        minY: renderMinZ,
+        maxY: renderMaxZ,
+        centerX: (renderMinX + renderMaxX) / 2,
+        centerY: (renderMinZ + renderMaxZ) / 2,
+      });
+    }
+
     // --- Flora ---
     const visiblePlantsAll = GE.world.flora.getPlantsInBounds(renderMinX, renderMaxX, renderMinZ, renderMaxZ);
     if (isFirstSync) console.log('[DEBUG] sync() - Flora visible length = ' + visiblePlantsAll.length);
@@ -1528,6 +1558,12 @@ export class BabylonRenderer {
       }
     }
 
+    this.syncFaunaThinInstances(renderMinX, renderMaxX, renderMinZ, renderMaxZ, isFirstSync);
+    if (isFirstSync) console.log('[DEBUG] sync() - Completed successfully');
+    return;
+  }
+
+  /*
     // --- Fauna ---
     const creatures = GE.world.fauna.creatures;
     if (isFirstSync) console.log('[DEBUG] sync() - Fauna length = ' + creatures.length);
@@ -1545,16 +1581,10 @@ export class BabylonRenderer {
       const base = this.entityBases.get(type);
       if (!base) continue;
 
-      let instances = this.entityInstances.get(type);
-      if (!instances) {
-        instances = [];
-        this.entityInstances.set(type, instances);
-      }
-      let shadowInstances = this.entityShadows.get(type);
-      if (!shadowInstances) {
-        shadowInstances = [];
-        this.entityShadows.set(type, shadowInstances);
-      }
+      const instances = this.entityInstances.get(type) ?? [];
+      this.entityInstances.set(type, instances);
+      const shadowInstances = this.entityShadows.get(type) ?? [];
+      this.entityShadows.set(type, shadowInstances);
 
       while (instances.length < typeCreatures.length) {
         const inst = base.createInstance(type + "_inst_" + instances.length);
@@ -1715,6 +1745,192 @@ export class BabylonRenderer {
     }
     
     if (isFirstSync) console.log('[DEBUG] sync() - Completed successfully');
+  }
+
+  */
+
+  private syncFaunaThinInstances(
+    renderMinX: number,
+    renderMaxX: number,
+    renderMinZ: number,
+    renderMaxZ: number,
+    isFirstSync: boolean
+  ): void {
+    const visibleCreatures = GE.world.fauna.getCreaturesInBounds(
+      renderMinX,
+      renderMaxX,
+      renderMinZ,
+      renderMaxZ
+    );
+
+    if (this.firstPersonTargetId !== null) {
+      const targetCreature = GE.world.fauna.creatures.find((creature) => (
+        creature.id === this.firstPersonTargetId
+      ));
+      if (targetCreature && !visibleCreatures.some((creature) => creature.id === targetCreature.id)) {
+        visibleCreatures.push(targetCreature);
+      }
+    }
+
+    if (isFirstSync) {
+      console.log('[DEBUG] sync() - Fauna visible length = ' + visibleCreatures.length);
+    }
+
+    const creaturesByType = new Map<string, any[]>();
+    const aliveCreatureIds = new Set<number>();
+
+    for (const creature of visibleCreatures) {
+      if (creature.lifeEnergy <= 0 && (!creature.deathReason || creature.timeSinceDeath > 3)) {
+        continue;
+      }
+
+      const type = creature.speciesName;
+      let list = creaturesByType.get(type);
+      if (!list) {
+        list = [];
+        creaturesByType.set(type, list);
+      }
+      list.push(creature);
+      aliveCreatureIds.add(creature.id);
+    }
+
+    for (const [type, base] of this.entityBases) {
+      if (type === "Bush" || type === "Tree") continue;
+      base.isVisible = false;
+      const shadowBase = this.thinShadowBases.get(type);
+      if (shadowBase) shadowBase.isVisible = false;
+    }
+
+    for (const [type, creatures] of creaturesByType) {
+      const base = this.entityBases.get(type);
+      if (!base) continue;
+
+      base.isVisible = creatures.length > 0;
+      base.alwaysSelectAsActiveMesh = true;
+
+      let shadowBase = this.thinShadowBases.get(type);
+      if (!shadowBase) {
+        shadowBase = BABYLON.MeshBuilder.CreatePlane(type + "_thinShadowBase", { size: 4 }, this.scene);
+        shadowBase.rotation.x = Math.PI / 2;
+        shadowBase.material = this.blobShadowBase.material;
+        shadowBase.alwaysSelectAsActiveMesh = true;
+        this.thinShadowBases.set(type, shadowBase);
+      }
+
+      shadowBase.isVisible = creatures.length > 0;
+
+      const buffers = this.ensureFaunaThinBuffers(type, creatures.length);
+      for (let i = 0; i < creatures.length; i++) {
+        this.writeCreatureThinInstance(creatures[i], i, buffers);
+      }
+
+      base.thinInstanceSetBuffer("matrix", buffers.matrix.subarray(0, creatures.length * 16), 16, false);
+      base.thinInstanceSetBuffer("color", buffers.color.subarray(0, creatures.length * 4), 4, false);
+      shadowBase.thinInstanceSetBuffer(
+        "matrix",
+        buffers.shadowMatrix.subarray(0, creatures.length * 16),
+        16,
+        false
+      );
+    }
+
+    for (const [id, box] of this.creatureStatsMap) {
+      if (!aliveCreatureIds.has(id) || !this.showEntityStats) {
+        box.isVisible = false;
+      }
+    }
+
+    const targetId = this.firstPersonTargetId;
+    if (targetId !== null && !aliveCreatureIds.has(targetId)) {
+      this.toggleFirstPersonCamera();
+    }
+  }
+
+  private ensureFaunaThinBuffers(type: string, count: number): ThinInstanceBuffers {
+    let buffers = this.faunaThinBuffers.get(type);
+    if (buffers && buffers.capacity >= count) return buffers;
+
+    let capacity = 1;
+    while (capacity < count) capacity *= 2;
+
+    buffers = {
+      matrix: new Float32Array(capacity * 16),
+      shadowMatrix: new Float32Array(capacity * 16),
+      color: new Float32Array(capacity * 4),
+      capacity,
+    };
+    this.faunaThinBuffers.set(type, buffers);
+    return buffers;
+  }
+
+  private writeCreatureThinInstance(creature: any, index: number, buffers: ThinInstanceBuffers): void {
+    let y = 2 + Math.abs(Math.sin((creature.position.x + creature.position.y) * 0.4)) * 1.0;
+    let scale = 1;
+    let rotX = 0;
+    let shadowScale = 0.6;
+
+    const vx = creature.velocity?.x || (creature.target.x - creature.position.x);
+    const vz = creature.velocity?.y || (creature.target.y - creature.position.y);
+    const rotY = Math.abs(vx) > 0.01 || Math.abs(vz) > 0.01 ? Math.atan2(vx, vz) : 0;
+
+    if (creature.lifeEnergy <= 0) {
+      if (creature.deathReason === 'drowned') {
+        y = 3 - (creature.timeSinceDeath / 3) * 8;
+        scale = Math.max(0.01, 1 - (creature.timeSinceDeath / 3));
+        shadowScale = scale * 0.6;
+      } else {
+        const tipAngle = Math.min(Math.PI / 2, creature.timeSinceDeath * 2);
+        rotX = tipAngle;
+        y = 3 - Math.sin(tipAngle) * 2;
+        shadowScale = 0.6;
+      }
+    }
+
+    const matrix = BABYLON.Matrix.Compose(
+      new BABYLON.Vector3(scale, scale, scale),
+      BABYLON.Quaternion.FromEulerAngles(rotX, rotY, 0),
+      new BABYLON.Vector3(creature.position.x, y, creature.position.y)
+    );
+    matrix.copyToArray(buffers.matrix, index * 16);
+
+    const shadowMatrix = BABYLON.Matrix.Compose(
+      new BABYLON.Vector3(shadowScale, shadowScale, shadowScale),
+      BABYLON.Quaternion.Identity(),
+      new BABYLON.Vector3(creature.position.x, 0.05, creature.position.y)
+    );
+    shadowMatrix.copyToArray(buffers.shadowMatrix, index * 16);
+
+    const [r, g, b] = this.getCreatureEnergyColor(creature);
+    const colorOffset = index * 4;
+    buffers.color[colorOffset] = r;
+    buffers.color[colorOffset + 1] = g;
+    buffers.color[colorOffset + 2] = b;
+    buffers.color[colorOffset + 3] = 1;
+
+    if (this.firstPersonTargetId === creature.id && this.firstPersonCamera) {
+      this.firstPersonCamera.position.x = creature.position.x;
+      this.firstPersonCamera.position.y = y + 2;
+      this.firstPersonCamera.position.z = creature.position.y;
+      this.firstPersonCamera.rotation.y = rotY;
+      this.firstPersonCamera.rotation.x = 0;
+    }
+  }
+
+  private getCreatureEnergyColor(creature: any): [number, number, number] {
+    if (creature.lifeEnergy <= 0) return [0.3, 0.3, 0.3];
+
+    const maxEnergy = 250;
+    const energyPercent = Math.min(1, Math.max(0, creature.lifeEnergy / maxEnergy));
+    const h = energyPercent * 120;
+    const s = 0.7;
+    const l = 0.3 + (energyPercent * 0.2);
+
+    const c = (1 - Math.abs(2 * l - 1)) * s;
+    const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+    const m = l - c / 2;
+
+    if (h < 60) return [c + m, x + m, m];
+    return [x + m, c + m, m];
   }
 
   private createStatBox(): GUI.Rectangle {

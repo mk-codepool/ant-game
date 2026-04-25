@@ -2,12 +2,20 @@ import WorldEngine from "./world.engine";
 import Time from "./time";
 import MouseController from "./mouse-controller";
 import SaveService from "./storage/save.service";
+import type { CameraBounds } from "./simulation/lod-scheduler";
+import {
+  DEFAULT_SIMULATION_CONFIG,
+  type SimulationConfig,
+} from "./simulation/simulation-config";
+import { SimulationWorkerClient } from "./simulation/simulation-worker-client";
+import type { SimulationCommand } from "./simulation/simulation-protocol";
 
 export interface GameEngineConfig {
   pause?: boolean;
   borderX?: number;
   borderY?: number;
   renderCallback?: () => void;
+  simulation?: Partial<SimulationConfig>;
   config?: any;
 }
 
@@ -22,6 +30,8 @@ export class GameEngine {
   world = WorldEngine;
   mouseController = new MouseController();
   saveService = SaveService;
+  simulationConfig: SimulationConfig = DEFAULT_SIMULATION_CONFIG;
+  simulationWorker = new SimulationWorkerClient();
   renderCallback = () => { };
 
   private lastTime = 0;
@@ -73,7 +83,43 @@ export class GameEngine {
           yEnd: config.borderY || 0,
         }
       });
+      this.startSimulationWorker();
     }
+
+    if (config.simulation) {
+      this.simulationConfig = {
+        ...this.simulationConfig,
+        ...config.simulation,
+        targetScale: {
+          ...this.simulationConfig.targetScale,
+          ...config.simulation.targetScale,
+        },
+        lod: {
+          ...this.simulationConfig.lod,
+          ...config.simulation.lod,
+        },
+      };
+      this.world.setSimulationConfig(this.simulationConfig);
+      this.simulationWorker.configure(this.simulationConfig);
+    }
+  }
+
+  setCameraBounds = (bounds: CameraBounds) => {
+    this.world.setCameraBounds(bounds);
+    this.simulationWorker.setCameraBounds(bounds);
+  }
+
+  enqueueSimulationCommand = (command: SimulationCommand) => {
+    this.simulationWorker.enqueue(command);
+  }
+
+  private startSimulationWorker() {
+    this.world.setSimulationConfig(this.simulationConfig);
+    this.simulationWorker.start(
+      this.simulationConfig,
+      this.world.terrain.width || this.world.worldBorders.xEnd,
+      this.world.terrain.height || this.world.worldBorders.yEnd
+    );
   }
 
   tick = (deltaTimeSeconds: number) => {
@@ -108,8 +154,8 @@ export class GameEngine {
 
   everyBigCycle = () => {
     this.world.doBigCycle();
-    // Autosave on every big cycle — less frequent to prevent 1s lag spikes
-    this.saveService.autosave(this.world);
+    // Schedule autosave outside the world tick to avoid serialization spikes.
+    this.saveService.scheduleAutosave(this.world);
   }
 
   everyEpicCycle = () => {

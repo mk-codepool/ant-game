@@ -2,6 +2,8 @@ import { getRandomNumber } from "../random";
 import type { WorldBorders } from "../world.engine";
 import { TerrainType } from "../world-map/terrain-generator.service";
 import terrainEngine, { type WorldMapEngine } from "../world-map/main";
+import { DEFAULT_SIMULATION_CONFIG } from "../simulation/simulation-config";
+import { SpatialIndex } from "../simulation/spatial-index";
 import { BaseFlora } from "./entities/base-flora";
 import { Bush } from "./entities/bush";
 import { Tree } from "./entities/tree";
@@ -13,8 +15,9 @@ export interface FloraContext {
 export class FloraEngine {
   _plants = new Map<number, BaseFlora>();
   private _cachedPlants: BaseFlora[] | null = null;
-  private _plantsGrid: Map<string, BaseFlora[]> | null = null;
-  private _gridCellSize = 150;
+  private readonly spatialIndex = new SpatialIndex<BaseFlora>(
+    DEFAULT_SIMULATION_CONFIG.spatialCellSize
+  );
   private nextPlantId = 1;
 
   worldBorders: WorldBorders = { xStart: 0, xEnd: 0, yStart: 0, yEnd: 0 };
@@ -38,63 +41,25 @@ export class FloraEngine {
   }
 
   getPlantsInRadius(x: number, y: number, radius: number): BaseFlora[] {
-    if (!this._plantsGrid) {
-      this._buildPlantsGrid();
-    }
-    const result: BaseFlora[] = [];
-    const minCx = Math.floor((x - radius) / this._gridCellSize);
-    const maxCx = Math.floor((x + radius) / this._gridCellSize);
-    const minCy = Math.floor((y - radius) / this._gridCellSize);
-    const maxCy = Math.floor((y + radius) / this._gridCellSize);
-
-    for (let cx = minCx; cx <= maxCx; cx++) {
-      for (let cy = minCy; cy <= maxCy; cy++) {
-        const key = `${cx},${cy}`;
-        const cell = this._plantsGrid?.get(key);
-        if (cell) {
-          result.push(...cell);
-        }
-      }
-    }
-    return result;
+    return this.spatialIndex.queryRadius(x, y, radius, []);
   }
 
   getPlantsInBounds(minX: number, maxX: number, minY: number, maxY: number): BaseFlora[] {
-    if (!this._plantsGrid) {
-      this._buildPlantsGrid();
-    }
-    const result: BaseFlora[] = [];
-    const minCx = Math.floor(minX / this._gridCellSize);
-    const maxCx = Math.floor(maxX / this._gridCellSize);
-    const minCy = Math.floor(minY / this._gridCellSize);
-    const maxCy = Math.floor(maxY / this._gridCellSize);
-
-    for (let cx = minCx; cx <= maxCx; cx++) {
-      for (let cy = minCy; cy <= maxCy; cy++) {
-        const key = `${cx},${cy}`;
-        const cell = this._plantsGrid?.get(key);
-        if (cell) {
-          result.push(...cell);
-        }
-      }
-    }
-    return result;
+    return this.spatialIndex.queryBounds(minX, maxX, minY, maxY, []);
   }
 
-  private _buildPlantsGrid() {
-    this._plantsGrid = new Map();
+  rebuildSpatialIndex() {
+    this.spatialIndex.clear();
     for (const p of this.plants) {
       if (p.lifeEnergy <= 0) continue;
-      const cx = Math.floor(p.position.x / this._gridCellSize);
-      const cy = Math.floor(p.position.y / this._gridCellSize);
-      const key = `${cx},${cy}`;
-      let cell = this._plantsGrid.get(key);
-      if (!cell) {
-        cell = [];
-        this._plantsGrid.set(key, cell);
-      }
-      cell.push(p);
+      this.spatialIndex.insert(p);
     }
+  }
+
+  clearPlants() {
+    this._plants.clear();
+    this.spatialIndex.clear();
+    this._cachedPlants = null;
   }
 
   getExactCoordinates = (x: number, y: number) => ({
@@ -126,7 +91,7 @@ export class FloraEngine {
     };
 
     let xy = { x: 0, y: 0 };
-    if (!x || !y) {
+    if (x === undefined || y === undefined) {
       let attempts = 0;
       let valid = false;
       do {
@@ -146,22 +111,24 @@ export class FloraEngine {
     }
 
     const id = this.nextPlantId++;
-    this._plants.set(id, new PlantClass({ position: xy, id }));
+    const plant = new PlantClass({ position: xy, id });
+    this._plants.set(id, plant);
+    this.spatialIndex.insert(plant);
     this._cachedPlants = null;
-    this._plantsGrid = null;
   }
 
   removePlant(id: number) {
     if (this._plants.has(id)) {
       this._plants.delete(id);
+      this.spatialIndex.remove(id);
       this._cachedPlants = null;
-      this._plantsGrid = null;
     }
   }
 
   clearInvalidPlants(terrain: WorldMapEngine, centerX: number, centerY: number, radius: number) {
     const radiusSquared = radius * radius;
-    for (const plant of this.plants) {
+    const plants = this.getPlantsInRadius(centerX, centerY, radius);
+    for (const plant of plants) {
       const dx = plant.position.x - centerX;
       const dy = plant.position.y - centerY;
       if (dx * dx + dy * dy <= radiusSquared) {

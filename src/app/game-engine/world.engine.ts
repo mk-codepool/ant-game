@@ -2,6 +2,8 @@ import FaunaEngine from "./fauna/main";
 import FloraEngine from "./flora/main";
 import WorldMapEngine from "./world-map/main";
 import BiomesEngine from "./biomes/main";
+import type { CameraBounds } from "./simulation/lod-scheduler";
+import type { SimulationConfig } from "./simulation/simulation-config";
 
 export interface WorldBorders {
   xStart: number;
@@ -40,13 +42,22 @@ export class WorldEngine {
     }
   }
 
+  setSimulationConfig = (config: Partial<SimulationConfig>) => {
+    this.fauna.setSimulationConfig(config);
+  }
+
+  setCameraBounds = (bounds: CameraBounds) => {
+    this.fauna.setCameraBounds(bounds);
+  }
+
   doFrameCycle = (dt: number) => {
     this.fauna.doFrameCycle(dt, {
       plants: this.flora.plants,
       creatures: this.fauna.creatures,
       worldBorders: this.worldBorders,
       terrain: this.terrain,
-      getNearbyPlants: (x, y, radius) => this.flora.getPlantsInRadius(x, y, radius)
+      getNearbyPlants: (x, y, radius) => this.flora.getPlantsInRadius(x, y, radius),
+      getNearbyCreatures: (x, y, radius) => this.fauna.getCreaturesInRadius(x, y, radius)
     });
     
     // Flora frame cycle (e.g. handle eaten plants, growing, dying in wrong biomes)
@@ -66,7 +77,8 @@ export class WorldEngine {
       creatures: this.fauna.creatures,
       worldBorders: this.worldBorders,
       terrain: this.terrain,
-      getNearbyPlants: (x, y, radius) => this.flora.getPlantsInRadius(x, y, radius)
+      getNearbyPlants: (x, y, radius) => this.flora.getPlantsInRadius(x, y, radius),
+      getNearbyCreatures: (x, y, radius) => this.fauna.getCreaturesInRadius(x, y, radius)
     });
     this.flora.doSmallCycle();
     this.terrain.doSmallCycle();

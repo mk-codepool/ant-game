@@ -14,6 +14,7 @@ export class SaveGameService {
 
   /** Whether an autosave write is currently in progress */
   private autosaveInProgress = false;
+  private autosaveScheduled = false;
 
   // ── Autosave / Auto-restore ────────────────────────────────────
 
@@ -21,6 +22,26 @@ export class SaveGameService {
    * Autosave the current world state. Overwrites the single autosave slot.
    * Debounced: if a write is already in flight, skip this call.
    */
+  scheduleAutosave(world: WorldEngine): void {
+    if (this.autosaveScheduled || this.autosaveInProgress) return;
+    this.autosaveScheduled = true;
+
+    const run = () => {
+      this.autosaveScheduled = false;
+      void this.autosave(world);
+    };
+
+    const idleCallback = typeof window !== 'undefined'
+      ? (window as any).requestIdleCallback
+      : null;
+
+    if (idleCallback) {
+      idleCallback(run, { timeout: 3000 });
+    } else {
+      setTimeout(run, 0);
+    }
+  }
+
   async autosave(world: WorldEngine): Promise<void> {
     if (this.autosaveInProgress) return; // skip if already writing
     this.autosaveInProgress = true;
@@ -229,7 +250,7 @@ export class SaveGameService {
     }
 
     // Restore creatures
-    world.fauna._creatures.clear();
+    world.fauna.clearCreatures();
     for (const sc of savedCreatures) {
       world.fauna.createCreature(undefined, sc.x, sc.y);
       const created = world.fauna.creatures[world.fauna.creatures.length - 1];
@@ -242,7 +263,7 @@ export class SaveGameService {
     }
 
     // Restore plants
-    world.flora._plants.clear();
+    world.flora.clearPlants();
     for (const sp of savedPlants) {
       world.flora.createPlant(undefined, sp.x, sp.y);
       const created = world.flora.plants[world.flora.plants.length - 1];
@@ -251,6 +272,8 @@ export class SaveGameService {
         created.age = sp.age;
       }
     }
+    world.fauna.rebuildSpatialIndex();
+    world.flora.rebuildSpatialIndex();
 
     console.info(`[SaveService] Loaded save "${slot.name}" — ${savedCreatures.length} creatures, ${savedPlants.length} plants`);
     return true;
