@@ -327,32 +327,35 @@ export class BabylonRenderer {
       // Remove plants that are overwritten by Water or Sand brushing
       GE.world.flora.clearInvalidPlants(GE.world.terrain, x, y, this.brushSize);
     } else {
-      const angle = Math.random() * Math.PI * 2;
-      const r = Math.sqrt(Math.random()) * this.brushSize;
-      const dx = Math.cos(angle) * r;
-      const dy = Math.sin(angle) * r;
-      const px = x + dx;
-      const py = y + dy;
+      const spawnCount = 5;
+      for (let i = 0; i < spawnCount; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const r = Math.sqrt(Math.random()) * this.brushSize;
+        const dx = Math.cos(angle) * r;
+        const dy = Math.sin(angle) * r;
+        const px = x + dx;
+        const py = y + dy;
 
-      switch (this.activeBrush) {
-        case 'creature':
-          GE.world.fauna.createCreature(GE.world.fauna.creaturesDef.ant, px, py);
-          GE.enqueueSimulationCommand({ type: 'spawnCreature', species: 'ant', x: px, y: py });
-          break;
-        case 'plant':
-          const cell = GE.world.terrain.getPixelCell(px, py);
-          if (cell && cell.terrain === TerrainType.GRASS) {
-            GE.world.flora.createPlant(GE.world.flora.plantsDef.bush, px, py);
-            GE.enqueueSimulationCommand({ type: 'spawnPlant', species: 'bush', x: px, y: py });
-          }
-          break;
-        case 'tree':
-          const treeCell = GE.world.terrain.getPixelCell(px, py);
-          if (treeCell && treeCell.terrain === TerrainType.GRASS) {
-            GE.world.flora.createPlant(GE.world.flora.plantsDef.tree, px, py);
-            GE.enqueueSimulationCommand({ type: 'spawnPlant', species: 'tree', x: px, y: py });
-          }
-          break;
+        switch (this.activeBrush) {
+          case 'creature':
+            GE.world.fauna.createCreature(GE.world.fauna.creaturesDef.ant, px, py);
+            GE.enqueueSimulationCommand({ type: 'spawnCreature', species: 'ant', x: px, y: py });
+            break;
+          case 'plant':
+            const cell = GE.world.terrain.getPixelCell(px, py);
+            if (cell && cell.terrain === TerrainType.GRASS) {
+              GE.world.flora.createPlant(GE.world.flora.plantsDef.bush, px, py);
+              GE.enqueueSimulationCommand({ type: 'spawnPlant', species: 'bush', x: px, y: py });
+            }
+            break;
+          case 'tree':
+            const treeCell = GE.world.terrain.getPixelCell(px, py);
+            if (treeCell && treeCell.terrain === TerrainType.GRASS) {
+              GE.world.flora.createPlant(GE.world.flora.plantsDef.tree, px, py);
+              GE.enqueueSimulationCommand({ type: 'spawnPlant', species: 'tree', x: px, y: py });
+            }
+            break;
+        }
       }
     }
   }
@@ -483,7 +486,7 @@ export class BabylonRenderer {
     entityGrid.height = "130px";
     entityGrid.paddingBottom = "8px";
 
-    const faunaLabel = new GUI.TextBlock("faunaLabel", "Fauna");
+    const faunaLabel = new GUI.TextBlock("faunaLabel", "Ant");
     faunaLabel.color = "#cbd5e1";
     faunaLabel.fontSize = 12;
     faunaLabel.fontFamily = "Roboto, Arial, sans-serif";
@@ -602,7 +605,7 @@ export class BabylonRenderer {
 
     // Live Options Content
     liveOptionsPanel.addControl(createHeader("Settings"));
-    
+
     const statsPanel = new GUI.StackPanel();
     statsPanel.isVertical = false;
     statsPanel.height = "30px";
@@ -617,7 +620,7 @@ export class BabylonRenderer {
     statsCheckbox.onIsCheckedChangedObservable.add((value) => {
       this.showEntityStats = value;
       for (const [, box] of this.creatureStatsMap) {
-         box.isVisible = value;
+        box.isVisible = value;
       }
     });
 
@@ -663,7 +666,7 @@ export class BabylonRenderer {
       if (creatures.length === 0) return;
       const randomCreature = creatures[Math.floor(Math.random() * creatures.length)];
       this.firstPersonTargetId = randomCreature.id;
-      
+
       this.firstPersonCamera = new BABYLON.UniversalCamera("firstPersonCam", new BABYLON.Vector3(0, 0, 0), this.scene);
       this.firstPersonCamera.minZ = 0.1;
       this.scene.activeCamera = this.firstPersonCamera;
@@ -1438,7 +1441,7 @@ export class BabylonRenderer {
         if (cam.target) {
           // Adjust culling distance based on camera zoom (radius)
           // Add a generous buffer (e.g., +200) to avoid pop-in at the edges
-          const viewDist = Math.max(100, cam.radius * 1.5) + 200; 
+          const viewDist = Math.max(100, cam.radius * 1.5) + 200;
           renderMinX = cam.target.x - viewDist;
           renderMaxX = cam.target.x + viewDist;
           renderMinZ = cam.target.z - viewDist;
@@ -1448,7 +1451,7 @@ export class BabylonRenderer {
     }
 
     if (Number.isFinite(renderMinX) && Number.isFinite(renderMaxX) &&
-        Number.isFinite(renderMinZ) && Number.isFinite(renderMaxZ)) {
+      Number.isFinite(renderMinZ) && Number.isFinite(renderMaxZ)) {
       GE.setCameraBounds({
         minX: renderMinX,
         maxX: renderMaxX,
@@ -1467,10 +1470,10 @@ export class BabylonRenderer {
     for (let i = 0; i < visiblePlantsAll.length; i++) {
       const plant = visiblePlantsAll[i];
       if (plant.lifeEnergy <= 0) continue; // Dead flora doesn't render
-      
+
       if (plant.position.x >= renderMinX && plant.position.x <= renderMaxX &&
-          plant.position.y >= renderMinZ && plant.position.y <= renderMaxZ) {
-          
+        plant.position.y >= renderMinZ && plant.position.y <= renderMaxZ) {
+
         const type = plant.resourceName;
         let list = plantsByType.get(type);
         if (!list) {
@@ -1496,7 +1499,7 @@ export class BabylonRenderer {
 
       let currentIdSum = 0;
       for (let i = 0; i < visiblePlants.length; i++) {
-         currentIdSum += visiblePlants[i].id;
+        currentIdSum += visiblePlants[i].id;
       }
 
       base.isVisible = visiblePlants.length > 0;
@@ -1544,7 +1547,7 @@ export class BabylonRenderer {
           matrix.copyToArray(buffer, i * 16);
 
           const shadowMatrix = BABYLON.Matrix.Compose(
-            new BABYLON.Vector3(scale * 0.25, scale * 0.25, scale * 0.25),
+            new BABYLON.Vector3(scale * 1.0, scale * 1.0, scale * 1.0),
             quatIdentity,
             new BABYLON.Vector3(plant.position.x, plant.position.y, -0.05)
           );
